@@ -1,0 +1,187 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg-primary: #09090b;
+  --bg-panel: #111113;
+  --bg-cell: #18181b;
+  --bg-hover: #1e1e22;
+  --border: #1e1e22;
+  --border-bright: #2a2a2e;
+  --accent-teal: #00d4aa;
+  --accent-amber: #f59e0b;
+  --text-primary: #e4e4e7;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --up: #22c55e;
+  --down: #ef4444;
+  --live: #f59e0b;
+
+  /* Chart palette — 13 visually distinct dark-mode colours */
+  --c0: #58a6ff; --c1: #f78166; --c2: #3fb950; --c3: #d2a8ff;
+  --c4: #ffa657; --c5: #ff7b72; --c6: #79c0ff; --c7: #56d364;
+  --c8: #e3b341; --c9: #bc8cff; --c10: #ff9bce; --c11: #89ddff;
+  --c12: #a5d6ff;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Noise texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.018;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+}
+
+body > * { position: relative; z-index: 1; }
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a2e; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a3e; }
+
+/* Shimmer loading effect */
+.shimmer {
+  background: linear-gradient(90deg, var(--bg-cell) 25%, var(--bg-hover) 50%, var(--bg-cell) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+/* Custom selection */
+::selection {
+  background: rgba(0, 212, 170, 0.2);
+  color: var(--text-primary);
+}
+
+/* Lightweight Charts container override */
+.tv-lightweight-charts {
+  border-radius: 0 !important;
+}
+
+/* Input field utility */
+.input-field {
+  width: 100%;
+  background: #0c0c12;
+  border: 1px solid #1e1e2e;
+  color: #e0e0e8;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.input-field:focus {
+  border-color: #00d4aa40;
+  box-shadow: 0 0 0 1px #00d4aa15;
+}
+.input-field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Card glow effect on hover */
+.card-glow {
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.card-glow:hover {
+  border-color: #2a2a3a;
+  box-shadow: 0 0 20px rgba(0, 212, 170, 0.03);
+}
+
+/* Stat card with top accent border */
+.stat-card {
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-teal), transparent);
+  opacity: 0.4;
+}
+
+/* Pulse ring animation */
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.5; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+.pulse-ring::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 1px solid var(--live);
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+/* Table row hover transition */
+.table-row-hover {
+  transition: background-color 0.15s ease;
+}
+.table-row-hover:hover {
+  background-color: rgba(30, 30, 34, 0.5);
+}
+
+/* Glass effect for overlays */
+.glass {
+  background: rgba(17, 17, 19, 0.85);
+  backdrop-filter: blur(8px);
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, #00d4aa 0%, #58a6ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Recharts overrides for dark theme */
+.recharts-cartesian-axis-tick-value { fill: #71717a !important; }
+.recharts-tooltip-wrapper { outline: none !important; }
+.recharts-default-tooltip {
+  background: rgba(12, 12, 18, 0.96) !important;
+  border: 1px solid #2a2a3a !important;
+  border-radius: 4px !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 11px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Subtle scan-line effect (optional, very subtle) */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}
