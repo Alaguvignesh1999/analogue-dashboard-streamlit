@@ -21,9 +21,9 @@ const GRID_CLR = '#1c1c2c';
 export function VixTab() {
   const { eventReturns, events, activeEvents, live } = useDashboard();
 
-  const activeEventNames = useMemo(() =>
-    events.filter(e => activeEvents.has(e.name) && !e.name.endsWith('†')).map(e => e.name),
-    [events, activeEvents]
+  const activeEventNames = useMemo(
+    () => events.filter((event) => activeEvents.has(event.name) && !!eventReturns.VIX?.[event.name]).map((event) => event.name),
+    [activeEvents, eventReturns, events]
   );
 
   const { chartData, hasData, medianStats } = useMemo(() => {

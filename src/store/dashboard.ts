@@ -76,6 +76,7 @@ interface DashboardState {
     eventTags: Record<string, Set<string>>;
     macroContext: Record<string, MacroContext>;
     availability: Record<string, AvailabilityWindow>;
+    historicalSource: 'generated' | 'sample';
     warnings: string[];
     schemaVersion: number | null;
   }) => void;
@@ -178,7 +179,7 @@ export const useDashboard = create<DashboardState>((set) => ({
       dataLoaded: true,
       isLoading: false,
       provenance: {
-        historicalSource: 'generated',
+        historicalSource: data.historicalSource,
         historicalAsOf: data.historicalAsOf,
         historicalLoadedAt: new Date().toISOString(),
         liveSource: state.provenance.liveSource,

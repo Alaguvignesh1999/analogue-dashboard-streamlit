@@ -32,6 +32,7 @@ export function EventsTab() {
   const [customDate, setCustomDate] = useState('');
   const [customTags, setCustomTags] = useState<Set<string>>(new Set());
   const [customStatus, setCustomStatus] = useState('');
+  const [eventDateOverrides, setEventDateOverrides] = useState<Record<string, string>>({});
 
   const activeCount = activeEvents.size;
   const totalCount = events.length;
@@ -80,6 +81,35 @@ export function EventsTab() {
       returns,
     );
     setCustomStatus(`Applied ${customName.trim()} across ${Object.keys(returns).length} assets.`);
+    setCustomName('');
+    setCustomDate('');
+    setCustomTags(new Set());
+  };
+
+  const handleApplyDateOverride = (eventName: string, date: string, tags: string[]) => {
+    if (!dailyHistory) {
+      setCustomStatus('Daily history is not loaded yet.');
+      return;
+    }
+    if (!date) {
+      setCustomStatus(`Choose a date for ${eventName} first.`);
+      return;
+    }
+
+    const returns = computeCustomEventReturns(dailyHistory, assetMeta, date);
+    const trigger = getTriggerPriceForDate(dailyHistory, date);
+    addCustomEvent(
+      {
+        name: eventName,
+        date,
+        source: 'custom',
+        tags,
+        trigger: trigger?.value ?? null,
+        createdAt: new Date().toISOString(),
+      },
+      returns,
+    );
+    setCustomStatus(`Updated ${eventName} to ${date} across ${Object.keys(returns).length} assets.`);
   };
 
   return (
@@ -162,6 +192,8 @@ export function EventsTab() {
             {events.map((event) => {
               const active = activeEvents.has(event.name);
               const tags = eventTags[event.name] || new Set<string>();
+              const effectiveDate = eventDateOverrides[event.name] || event.date;
+              const eventTrigger = dailyHistory ? getTriggerPriceForDate(dailyHistory, effectiveDate) : null;
               return (
                 <div
                   key={event.name}
@@ -179,6 +211,32 @@ export function EventsTab() {
                     <div className="flex items-baseline gap-2 mb-2">
                       <span className="text-sm font-semibold text-text-primary font-mono">{event.name}</span>
                       <span className="text-2xs text-text-muted font-mono">{event.date}</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-[180px_auto] gap-2 mb-2">
+                      <input
+                        type="date"
+                        value={effectiveDate}
+                        onChange={(inputEvent) => setEventDateOverrides((current) => ({
+                          ...current,
+                          [event.name]: inputEvent.target.value,
+                        }))}
+                        className="input-field"
+                      />
+                      <div className="flex items-center justify-between gap-2 flex-wrap text-2xs text-text-dim">
+                        <span>
+                          Brent on date:{' '}
+                          <span className="text-text-primary">
+                            {eventTrigger ? `$${eventTrigger.value.toFixed(2)} (${eventTrigger.date})` : '--'}
+                          </span>
+                        </span>
+                        <Button
+                          onClick={() => handleApplyDateOverride(event.name, effectiveDate, Array.from(tags))}
+                          size="xs"
+                          variant="secondary"
+                        >
+                          Apply Exact Date
+                        </Button>
+                      </div>
                     </div>
                     {tags.size > 0 && (
                       <div className="flex flex-wrap gap-1.5">

@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, SliderControl } from '@/components/ui/ChartCard';
-import { anchorSeriesValue, displayLabel, unitLabel } from '@/engine/returns';
+import { anchorSeriesValue, displayLabel, isSparsePoiSeries, unitLabel } from '@/engine/returns';
 import { POIS, PRE_WINDOW_TD, POST_WINDOW_TD } from '@/config/engine';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -57,10 +57,11 @@ export function OverlayTab() {
     [activeEvents, events]
   );
 
-  const { chartData, allLineKeys } = useMemo(() => {
+  const { chartData, allLineKeys, sparseEvents } = useMemo(() => {
     const offsets = Array.from({ length: PRE_WINDOW_TD + POST_WINDOW_TD + 1 }, (_, index) => index - PRE_WINDOW_TD);
     const poiOffsets = new Set(POIS.map((poi) => poi.offset));
     const lineKeys: string[] = [];
+    const sparse = new Set<string>();
 
     const data = offsets.map((offset) => {
       const point: Record<string, number | null> & { offset: number } = { offset };
@@ -70,8 +71,9 @@ export function OverlayTab() {
         if (!series) continue;
 
         if (!lineKeys.includes(eventName)) lineKeys.push(eventName);
+        if (isSparsePoiSeries(series)) sparse.add(eventName);
 
-        if (eventName.endsWith('†') && !poiOffsets.has(offset)) {
+        if (isSparsePoiSeries(series) && !poiOffsets.has(offset)) {
           point[eventName] = null;
           continue;
         }
@@ -104,7 +106,7 @@ export function OverlayTab() {
       lineKeys.push('__live__');
     }
 
-    return { chartData: data, allLineKeys: lineKeys };
+    return { chartData: data, allLineKeys: lineKeys, sparseEvents: sparse };
   }, [activeEventNames, anchorMode, eventReturns, live.dayN, live.returns, selectedAsset, stepDay]);
 
   const yDomain = useMemo(() => {
@@ -299,8 +301,8 @@ export function OverlayTab() {
                   key={eventName}
                   dataKey={eventName}
                   stroke={PALETTE[index % PALETTE.length]}
-                  strokeWidth={eventName.endsWith('†') ? 1.2 : 1.6}
-                  dot={eventName.endsWith('†') ? { r: 3, fill: PALETTE[index % PALETTE.length], strokeWidth: 0 } : false}
+                  strokeWidth={sparseEvents.has(eventName) ? 1.2 : 1.6}
+                  dot={sparseEvents.has(eventName) ? { r: 3, fill: PALETTE[index % PALETTE.length], strokeWidth: 0 } : false}
                   connectNulls={false}
                   strokeDasharray={DASHES[index % DASHES.length]}
                   hide={hiddenLines.has(eventName)}

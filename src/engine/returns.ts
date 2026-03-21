@@ -14,13 +14,13 @@ export type AnchorMode = 'raw' | 'day0' | 'stepin';
 
 export function normalizeLabel(label: string): string {
   return label
-    .replace(/â€ /g, '†')
-    .replace(/â†’/g, '->')
-    .replace(/â–¶/g, '▶')
-    .replace(/â€¦/g, '...')
-    .replace(/Â±/g, '±')
-    .replace(/Â·/g, '·')
-    .replace(/Î”|Δ/g, 'Δ');
+    .replace(/Ã¢â‚¬Â /g, '†')
+    .replace(/Ã¢â€ â€™/g, '->')
+    .replace(/Ã¢â€“Â¶/g, '▶')
+    .replace(/Ã¢â‚¬Â¦/g, '...')
+    .replace(/Ã‚Â±/g, '±')
+    .replace(/Ã‚Â·/g, '·')
+    .replace(/ÃŽâ€|Î”/g, 'Δ');
 }
 
 export function getSeriesValue(
@@ -63,6 +63,13 @@ export function anchorSeriesValue(
   const anchorValue = getSeriesValue(series, anchorOffset, tolerance);
   if (anchorValue === null) return null;
   return value - anchorValue;
+}
+
+export function isSparsePoiSeries(series: Record<number, number> | undefined): boolean {
+  if (!series) return false;
+  const offsets = Object.keys(series).map(Number);
+  const poiOffsets = new Set([-21, -5, 0, 5, 21, 63]);
+  return offsets.length > 0 && offsets.every((offset) => poiOffsets.has(offset));
 }
 
 export function getReturnSeries(

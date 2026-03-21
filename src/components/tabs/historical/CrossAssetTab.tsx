@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, EmptyState, Button, Badge } from '@/components/ui/ChartCard';
-import { anchorSeriesValue, displayLabel, unitLabel } from '@/engine/returns';
+import { anchorSeriesValue, displayLabel, isSparsePoiSeries, unitLabel } from '@/engine/returns';
 import { POIS, PRE_WINDOW_TD, POST_WINDOW_TD } from '@/config/engine';
 import { CUSTOM_GROUPS } from '@/config/assets';
 import {
@@ -98,12 +98,15 @@ export function CrossAssetTab() {
     setCrossAssetSelection(new Set());
   }, [setCrossAssetSelection]);
 
-  const { chartData, allLineKeys } = useMemo(() => {
-    if (!selectedEvent || selectedAssets.length === 0) return { chartData: [], allLineKeys: [] as string[] };
+  const { chartData, allLineKeys, sparseEvent } = useMemo(() => {
+    if (!selectedEvent || selectedAssets.length === 0) {
+      return { chartData: [], allLineKeys: [] as string[], sparseEvent: false };
+    }
 
     const offsets = Array.from({ length: PRE_WINDOW_TD + POST_WINDOW_TD + 1 }, (_, index) => index - PRE_WINDOW_TD);
     const poiOffsets = new Set(POIS.map((poi) => poi.offset));
     const lineKeys = [...selectedAssets];
+    const sparseEvent = selectedAssets.some((asset) => isSparsePoiSeries(eventReturns[asset]?.[selectedEvent]));
 
     const data = offsets.map((offset) => {
       const point: Record<string, number | null> & { offset: number } = { offset };
@@ -114,7 +117,7 @@ export function CrossAssetTab() {
           continue;
         }
 
-        if (selectedEvent.endsWith('†') && !poiOffsets.has(offset)) {
+        if (sparseEvent && !poiOffsets.has(offset)) {
           point[asset] = null;
           continue;
         }
@@ -124,7 +127,7 @@ export function CrossAssetTab() {
       return point;
     });
 
-    return { chartData: data, allLineKeys: lineKeys };
+    return { chartData: data, allLineKeys: lineKeys, sparseEvent };
   }, [eventReturns, selectedAssets, selectedEvent]);
 
   const yDomain = useMemo(() => {
@@ -311,8 +314,8 @@ export function CrossAssetTab() {
                       key={key}
                       dataKey={key}
                       stroke={PALETTE[index % PALETTE.length]}
-                      strokeWidth={selectedEvent.endsWith('†') ? 1.2 : 1.6}
-                      dot={selectedEvent.endsWith('†') ? { r: 3, fill: PALETTE[index % PALETTE.length], strokeWidth: 0 } : false}
+                      strokeWidth={sparseEvent ? 1.2 : 1.6}
+                      dot={sparseEvent ? { r: 3, fill: PALETTE[index % PALETTE.length], strokeWidth: 0 } : false}
                       connectNulls={false}
                       hide={hiddenLines.has(key)}
                       isAnimationActive={false}

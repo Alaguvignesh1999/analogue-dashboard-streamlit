@@ -7,7 +7,7 @@ export interface EventDef {
 }
 
 export const EVENTS: EventDef[] = [
-  { name: '1973 Oil Embargo†', date: '1973-10-17' },
+  { name: '1973 Oil Embargo', date: '1973-10-17' },
   { name: '1990 Gulf War', date: '1990-08-02' },
   { name: '1991 Kuwait Oil Fires', date: '1991-01-16' },
   { name: '1998 Desert Fox', date: '1998-12-16' },
@@ -33,7 +33,7 @@ export const ALL_TAGS = [
 export type EventTag = typeof ALL_TAGS[number];
 
 export const EVENT_TAGS: Record<string, Set<string>> = {
-  '1973 Oil Embargo†': new Set(['energy_shock', 'sanctions']),
+  '1973 Oil Embargo': new Set(['energy_shock', 'sanctions']),
   '1990 Gulf War': new Set(['military_conflict', 'energy_shock']),
   '1991 Kuwait Oil Fires': new Set(['military_conflict', 'energy_shock']),
   '1998 Desert Fox': new Set(['military_conflict']),
@@ -55,7 +55,7 @@ export interface MacroContext {
 }
 
 export const MACRO_CONTEXT: Record<string, MacroContext> = {
-  '1973 Oil Embargo†': { trigger: 4, cpi: 'high', fed: 'hiking' },
+  '1973 Oil Embargo': { trigger: 4, cpi: 'high', fed: 'hiking' },
   '1990 Gulf War': { trigger: 17, cpi: 'high', fed: 'cutting' },
   '1991 Kuwait Oil Fires': { trigger: 25, cpi: 'high', fed: 'cutting' },
   '1998 Desert Fox': { trigger: 11, cpi: 'low', fed: 'hold' },

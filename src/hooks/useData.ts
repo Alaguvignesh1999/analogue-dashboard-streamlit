@@ -30,7 +30,8 @@ interface LastUpdatedJSON {
 
 const REMOVED_ASSETS = new Set(['Euro HY OAS']);
 const EVENT_NAME_ALIASES: Record<string, string> = {
-  '1973 Oil Embargoâ€ ': '1973 Oil Embargo†',
+  '1973 Oil EmbargoÃ¢â‚¬Â ': '1973 Oil Embargo',
+  '1973 Oil Embargo†': '1973 Oil Embargo',
   '2020 COVID-19 PHEIC': 'COVID-19',
 };
 const EVENT_DATE_OVERRIDES: Record<string, string> = {
@@ -96,21 +97,23 @@ function parseEventReturns(raw: Record<string, Record<string, Record<string, num
 
 function normalizeAssetMeta(assetMeta: Record<string, AssetMeta>): Record<string, AssetMeta> {
   return Object.fromEntries(
-    Object.entries(assetMeta).map(([label, meta]) => {
-      const normalizedLabel = normalizeLabel(label);
-      if (REMOVED_ASSETS.has(normalizedLabel)) {
-        return null;
-      }
-      return [
-        normalizedLabel,
-        {
-          ...meta,
-          ticker: normalizeLabel(meta.ticker),
-          class: normalizeLabel(meta.class),
-          display_label: normalizeLabel(meta.display_label || normalizedLabel),
-        },
-      ];
-    }).filter(Boolean) as Array<[string, AssetMeta]>
+    Object.entries(assetMeta)
+      .map(([label, meta]) => {
+        const normalizedLabel = normalizeLabel(label);
+        if (REMOVED_ASSETS.has(normalizedLabel)) {
+          return null;
+        }
+        return [
+          normalizedLabel,
+          {
+            ...meta,
+            ticker: normalizeLabel(meta.ticker),
+            class: normalizeLabel(meta.class),
+            display_label: normalizeLabel(meta.display_label || normalizedLabel),
+          },
+        ];
+      })
+      .filter(Boolean) as Array<[string, AssetMeta]>
   );
 }
 
@@ -129,8 +132,8 @@ function normalizeMacroContext(meta: MetaJSON['macro_context']): Record<string, 
       normalizeEventName(eventName),
       {
         trigger: context.trigger,
-        cpi: (context.cpi === 'high' || context.cpi === 'mid' || context.cpi === 'low') ? context.cpi : 'mid',
-        fed: (context.fed === 'hiking' || context.fed === 'cutting' || context.fed === 'hold') ? context.fed : 'hold',
+        cpi: context.cpi === 'high' || context.cpi === 'mid' || context.cpi === 'low' ? context.cpi : 'mid',
+        fed: context.fed === 'hiking' || context.fed === 'cutting' || context.fed === 'hold' ? context.fed : 'hold',
       },
     ])
   );
@@ -230,7 +233,9 @@ export function useDataLoader() {
             date: EVENT_DATE_OVERRIDES[normalizeEventName(event.name)] || event.date,
           }))
           .sort((left, right) => left.date.localeCompare(right.date));
-        const removedByFailure = new Set((lastUpdated.fred_failures || []).map((seriesId) => FRED_FAILURE_LABELS[seriesId]).filter(Boolean));
+        const removedByFailure = new Set(
+          (lastUpdated.fred_failures || []).map((seriesId) => FRED_FAILURE_LABELS[seriesId]).filter(Boolean)
+        );
         const excludedAssets = new Set([...Array.from(REMOVED_ASSETS), ...Array.from(removedByFailure)]);
         const allLabels = meta.all_labels.map((label) => normalizeLabel(label)).filter((label) => !excludedAssets.has(label));
         const assetOrder = meta.asset_order.map((label) => normalizeLabel(label)).filter((label) => !excludedAssets.has(label));
@@ -238,12 +243,15 @@ export function useDataLoader() {
         const eventTags = normalizeEventTags(meta.event_tags);
         const macroContext = normalizeMacroContext(meta.macro_context);
         const availability = deriveAvailability(allLabels, meta.availability || dailyHistory?.availability);
+        const historicalSource = lastUpdated.pipeline_mode === 'sample' ? 'sample' : 'generated';
         const warnings = [
           ...(lastUpdated.fred_failures?.length
             ? [`FRED partial failure: ${lastUpdated.fred_failures.join(', ')}`]
             : []),
-          ...(lastUpdated.pipeline_mode === 'sample' ? ['Historical data source: sample artifacts'] : []),
+          ...(historicalSource === 'sample' ? ['Historical data source: sample artifacts'] : []),
+          ...(!dailyHistory ? ['Daily history artifact missing: refresh data before testing custom events'] : []),
         ];
+
         for (const label of excludedAssets) {
           delete assetMeta[label];
           delete eventReturns[label];
@@ -258,14 +266,13 @@ export function useDataLoader() {
           allLabels,
           allClasses,
           triggerZScores,
-          lastUpdated: lastUpdated.timestamp
-            ? new Date(lastUpdated.timestamp).toLocaleDateString()
-            : 'Unknown',
+          lastUpdated: lastUpdated.timestamp ? new Date(lastUpdated.timestamp).toLocaleDateString() : 'Unknown',
           historicalAsOf: lastUpdated.as_of || lastUpdated.timestamp || dailyHistory?.asOf || null,
           events,
           eventTags,
           macroContext,
           availability,
+          historicalSource,
           warnings,
           schemaVersion:
             meta.schema_version ||
