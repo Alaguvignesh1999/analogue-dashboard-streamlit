@@ -1,13 +1,25 @@
 'use client';
+
 import { useMemo, useCallback } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Button, SliderControl, StatBox, EmptyState, Badge } from '@/components/ui/ChartCard';
 import { runAnalogueMatch, selectEvents } from '@/engine/similarity';
-import { ANALOGUE_WEIGHTS } from '@/config/engine';
 
 export function AnaloguesTab() {
   const {
-    eventReturns, live, scores, setScores, scoreCutoff, setCutoff, triggerZScores,
+    eventReturns,
+    events,
+    eventTags,
+    macroContext,
+    live,
+    scores,
+    setScores,
+    scoreCutoff,
+    setCutoff,
+    triggerZScores,
+    analogueWeights,
+    setAnalogueWeights,
+    similarityAssets,
   } = useDashboard();
 
   const hasLive = live.returns !== null && live.dayN !== null;
@@ -18,35 +30,44 @@ export function AnaloguesTab() {
       eventReturns,
       live.returns,
       live.tags,
-      live.triggerPctile,
+      live.triggerZScore,
       live.cpi,
       live.fed,
       live.dayN,
       triggerZScores,
+      {
+        weights: analogueWeights,
+        simAssets: similarityAssets,
+        events,
+        eventTags,
+        macroContext,
+      }
     );
     setScores(result);
-  }, [eventReturns, live, triggerZScores, setScores]);
+  }, [analogueWeights, eventReturns, eventTags, events, live, macroContext, setScores, triggerZScores]);
 
   const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
 
   const stats = useMemo(() => {
     if (scores.length === 0) return { topScore: 0, avgScore: 0, selected: 0 };
-    const composites = scores.map(s => s.composite);
-    const topScore = Math.max(...composites);
-    const avgScore = composites.reduce((a, b) => a + b, 0) / composites.length;
-    return { topScore, avgScore, selected: selectedEvents.length };
-  }, [scores, selectedEvents]);
+    const composites = scores.map((score) => score.composite);
+    return {
+      topScore: Math.max(...composites),
+      avgScore: composites.reduce((sum, value) => sum + value, 0) / composites.length,
+      selected: selectedEvents.length,
+    };
+  }, [scores, selectedEvents.length]);
 
   return (
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title="Analogue Matching"
-        subtitle={`${scores.length} events scored · Day+${live.dayN ?? 0} live path`}
+        subtitle={`${scores.length} events scored | Day+${live.dayN ?? 0} live path | weighted scoring`}
         controls={
           <div className="flex items-center gap-3">
             <SliderControl label="Cutoff" value={scoreCutoff} onChange={setCutoff} min={0} max={1} step={0.05} />
             <Button onClick={handleMatch} disabled={!hasLive}>
-              {scores.length > 0 ? '↻ Re-score' : '▶ Run'}
+              {scores.length > 0 ? 'Re-score' : 'Run'}
             </Button>
           </div>
         }
@@ -54,79 +75,101 @@ export function AnaloguesTab() {
         {!hasLive ? (
           <EmptyState
             title="No Live Event"
-            message="Configure live event in L1 Config and pull data to begin matching"
-          />
-        ) : scores.length === 0 ? (
-          <EmptyState
-            title="Ready to Score"
-            message={`Click "Run" to find analogues matching ${live.name}`}
+            message="Configure live event in L1 Config and pull data to begin matching."
           />
         ) : (
           <div className="space-y-4">
-            {/* Summary stats */}
             <div className="px-4 pt-4 grid grid-cols-3 gap-3">
               <StatBox
                 label="Top Score"
                 value={`${(stats.topScore * 100).toFixed(0)}%`}
                 color={stats.topScore >= 0.7 ? '#69f0ae' : stats.topScore >= 0.5 ? '#ffd740' : '#ff5252'}
               />
-              <StatBox
-                label="Avg Score"
-                value={`${(stats.avgScore * 100).toFixed(0)}%`}
-                color="#00d4aa"
+              <StatBox label="Avg Score" value={`${(stats.avgScore * 100).toFixed(0)}%`} color="#00d4aa" />
+              <StatBox label="Selected" value={stats.selected} sub={`of ${scores.length} total`} color="#ffffff" />
+            </div>
+
+            <div className="px-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+              <SliderControl
+                label="Quant"
+                value={analogueWeights.quant}
+                onChange={(value) => setAnalogueWeights({ quant: value })}
+                min={0}
+                max={1}
+                step={0.05}
               />
-              <StatBox
-                label="Selected"
-                value={stats.selected}
-                sub={`of ${scores.length} total`}
-                color="#ffffff"
+              <SliderControl
+                label="Tag"
+                value={analogueWeights.tag}
+                onChange={(value) => setAnalogueWeights({ tag: value })}
+                min={0}
+                max={1}
+                step={0.05}
+              />
+              <SliderControl
+                label="Macro"
+                value={analogueWeights.macro}
+                onChange={(value) => setAnalogueWeights({ macro: value })}
+                min={0}
+                max={1}
+                step={0.05}
               />
             </div>
 
-            {/* Score bars */}
-            <div className="px-4 pb-4 space-y-2 max-h-[400px] overflow-y-auto">
-              {scores.map((s, i) => {
-                const above = s.composite >= scoreCutoff;
-                const isGood = s.composite >= 0.7;
-                const isOk = s.composite >= 0.5;
-                const barColor = isGood ? '#22c55e' : isOk ? '#fbbf24' : '#ef4444';
+            <div className="px-4 text-2xs text-text-dim">
+              Weights auto-normalize to 1.00 and feed the composite score directly. Matching pool: {similarityAssets.length} assets.
+            </div>
 
-                return (
-                  <div
-                    key={s.event}
-                    className={`transition-all p-2.5 border border-border/30 rounded-sm ${
-                      above ? 'bg-bg-cell/40 hover:bg-bg-cell/60' : 'opacity-40'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-1.5">
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium text-text-primary truncate">
-                          {i + 1}. {s.event}
+            {scores.length === 0 ? (
+              <EmptyState title="Ready to Score" message={`Click "Run" to find analogues matching ${live.name}.`} />
+            ) : (
+              <div className="px-4 pb-4 space-y-2 max-h-[440px] overflow-y-auto">
+                {scores.map((score, index) => {
+                  const selected = score.composite >= scoreCutoff;
+                  const quantContribution = score.quant * analogueWeights.quant;
+                  const tagContribution = score.tag * analogueWeights.tag;
+                  const macroContribution = score.macro * analogueWeights.macro;
+
+                  return (
+                    <div
+                      key={score.event}
+                      className={`transition-all p-2.5 border border-border/30 rounded-sm ${
+                        selected ? 'bg-bg-cell/40 hover:bg-bg-cell/60' : 'opacity-50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium text-text-primary truncate">
+                            {index + 1}. {score.event}
+                          </div>
+                          <div className="text-2xs text-text-dim mt-0.5">
+                            Composite {(score.composite * 100).toFixed(1)}% | Shared assets {score.sharedAssetCount}
+                          </div>
                         </div>
-                        <div className="text-2xs text-text-dim mt-0.5">
-                          Composite: {(s.composite * 100).toFixed(1)}% | Quant: {(s.quant * 100).toFixed(0)}% | Tag: {(s.tag * 100).toFixed(0)}% | Macro: {(s.macro * 100).toFixed(0)}%
-                        </div>
+                        {selected && <Badge color="green">SELECTED</Badge>}
                       </div>
-                      {above && <Badge color="green">SELECTED</Badge>}
-                    </div>
-                    {/* Composite bar with gradient */}
-                    <div className="w-full h-2 bg-bg-primary rounded-sm overflow-hidden">
-                      <div
-                        className="h-full transition-all rounded-sm"
-                        style={{
-                          width: `${s.composite * 100}%`,
-                          background: `linear-gradient(90deg, ${barColor}40, ${barColor}ff)`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
 
-            {/* Footer */}
+                      <div className="w-full h-2 bg-bg-primary rounded-sm overflow-hidden flex">
+                        <div style={{ width: `${quantContribution * 100}%`, background: '#00e5ff' }} />
+                        <div style={{ width: `${tagContribution * 100}%`, background: '#ffab40' }} />
+                        <div style={{ width: `${macroContribution * 100}%`, background: '#b388ff' }} />
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] text-text-dim">
+                        <div>Quant: {(score.quant * 100).toFixed(0)}%</div>
+                        <div>Tag: {(score.tag * 100).toFixed(0)}%</div>
+                        <div>Macro: {(score.macro * 100).toFixed(0)}%</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="px-4 py-3 border-t border-border/30 text-2xs text-text-dim space-y-1">
-              <div>Weights: Q×{ANALOGUE_WEIGHTS.quant.toFixed(2)} | T×{ANALOGUE_WEIGHTS.tag.toFixed(2)} | M×{ANALOGUE_WEIGHTS.macro.toFixed(2)}</div>
+              <div>
+                Weights: Q x {analogueWeights.quant.toFixed(2)} | T x {analogueWeights.tag.toFixed(2)} | M x {analogueWeights.macro.toFixed(2)}
+              </div>
               <div>{selectedEvents.length} of {scores.length} events above cutoff threshold</div>
             </div>
           </div>

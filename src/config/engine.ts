@@ -30,8 +30,10 @@ export const ANALOGUE_WEIGHTS = {
 export const SIMILARITY_ASSET_POOL = [
   'Brent Futures', 'VIX', 'Gold', 'DXY', 'S&P 500',
   'US 10Y Yield', 'US HY OAS',
-  'USDEUR', 'USDJPY', 'Copper', 'Shipping (BDRY)',
+  'EURUSD', 'USDJPY', 'Copper', 'Shipping (BDRY)',
 ];
+
+export const DATA_SCHEMA_VERSION = 2;
 
 export const TRIGGER_ZSCORE_SIGMA = 1.5;
 

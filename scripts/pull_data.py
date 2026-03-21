@@ -34,7 +34,7 @@ EVENTS = [
     ("2011 Libya",              "2011-03-19"),
     ("2014 ISIS/Mosul",         "2014-06-10"),
     ("2017 Syria Strikes",      "2017-04-07"),
-    ("2020 COVID-19 PHEIC",     "2020-01-30"),
+    ("COVID-19",                "2020-03-01"),
     ("2022 Russia-Ukraine",     "2022-02-24"),
     ("2023 Red Sea Crisis",     "2023-12-19"),
 ]
@@ -119,7 +119,7 @@ ASSETS = [
     ("Platinum","PL=F","Precious Metals","yf"),
     ("Palladium","PA=F","Precious Metals","yf"),
     ("Gold Vol (GVZ)","^GVZ","Precious Metals","yf"),
-    ("DXY","DX=F","FX","yf"),
+    ("DXY","DX-Y.NYB","FX","yf"),
     ("USDCHF","USDCHF=X","FX","yf"),
     ("EURUSD","EURUSD=X","FX","yf"),
     ("GBPUSD","GBPUSD=X","FX","yf"),
@@ -163,7 +163,6 @@ ASSETS = [
     ("US IG OAS","BAMLC0A0CM","Credit","fred"),
     ("US BBB OAS","BAMLC0A4CBBB","Credit","fred"),
     ("US HY OAS","BAMLH0A0HYM2","Credit","fred"),
-    ("Euro HY OAS","BAMLHE00EHY0EY","Credit","fred"),
     ("HY Bond ETF (HYG)","HYG","Credit","yf"),
     ("IG Bond ETF (LQD)","LQD","Credit","yf"),
     ("EM Sov Debt (EMB)","EMB","Credit","yf"),
@@ -349,6 +348,17 @@ def compute_trigger_zscore(evt_date_str, prices_df, window_td=1260):
     return round((p0 - mu) / sig, 3)
 
 
+def build_availability(prices_df):
+    availability = {}
+    for label in prices_df.columns:
+        series = prices_df[label].dropna()
+        availability[label] = {
+            "startDate": series.index[0].strftime("%Y-%m-%d") if not series.empty else None,
+            "endDate": series.index[-1].strftime("%Y-%m-%d") if not series.empty else None,
+        }
+    return availability
+
+
 # ── MAIN ──────────────────────────────────────────────────────
 
 def main():
@@ -438,6 +448,7 @@ def main():
     prices = prices.sort_index().dropna(how="all")
     all_labels = [l for l in asset_order if l in prices.columns]
     all_classes = sorted(set(meta[l]["class"] for l in all_labels))
+    availability = build_availability(prices[all_labels])
     
     print(f"Price frame: {prices.shape[1]} assets × {prices.shape[0]} rows")
     
@@ -508,6 +519,8 @@ def main():
         "events": [{"name": n, "date": d} for n, d in all_events],
         "event_tags": EVENT_TAGS,
         "macro_context": MACRO_CONTEXT,
+        "availability": availability,
+        "schema_version": 2,
         "pois": [{"label": l, "offset": o} for l, o in POIS],
     }
     with open(OUT_DIR / "meta.json", "w") as f:
@@ -516,6 +529,20 @@ def main():
     # trigger_zscores.json
     with open(OUT_DIR / "trigger_zscores.json", "w") as f:
         json.dump(trigger_zscores, f, separators=(",", ":"))
+
+    daily_history = {
+        "dates": [idx.strftime("%Y-%m-%d") for idx in prices.index],
+        "prices": {
+            label: [None if pd.isna(v) else round(float(v), 6) for v in prices[label].tolist()]
+            for label in all_labels
+        },
+        "availability": availability,
+        "asOf": prices.index[-1].strftime("%Y-%m-%d") if len(prices.index) else None,
+        "schemaVersion": 2,
+    }
+    dh_bytes = json.dumps(daily_history, separators=(",", ":")).encode()
+    with gzip.open(OUT_DIR / "daily_history.json.gz", "wb") as f:
+        f.write(dh_bytes)
     
     # last_updated.json
     with open(OUT_DIR / "last_updated.json", "w") as f:
@@ -525,6 +552,9 @@ def main():
             "n_events": len(all_events),
             "n_rows": len(prices),
             "fred_failures": fred_fail,
+            "schema_version": 2,
+            "pipeline_mode": "generated",
+            "as_of": prices.index[-1].strftime("%Y-%m-%d") if len(prices.index) else None,
         }, f, indent=2)
     
     print("\n✅ All data files written to public/data/")

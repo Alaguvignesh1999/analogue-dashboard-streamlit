@@ -11,7 +11,7 @@ export const CUSTOM_GROUPS: Record<string, string[]> = {
   'FX G10': ['DXY','USDCAD','USDNOK','AUDUSD','NZDUSD','USDJPY','EURUSD','GBPUSD','USDCHF','USDSEK'],
   'FX EM': ['USDMXN','USDBRL','USDCLP','USDCOP','USDZAR','USDTRY','USDPLN','USDHUF','USDCZK','USDILS','USDCNH','USDTWD','USDINR','USDIDR','USDKRW','USDMYR','USDTHB','USDPHP'],
   'DM Rates': ['US 2Y Yield','US 5Y Yield','US 10Y Yield','US 30Y Yield','US 10Y Breakeven','US 5Y Breakeven','US 10Y Real Yield'],
-  'Credit': ['US IG OAS','US BBB OAS','US HY OAS','Euro HY OAS','HY Bond ETF (HYG)','IG Bond ETF (LQD)','EM Sov Debt (EMB)'],
+  'Credit': ['US IG OAS','US BBB OAS','US HY OAS','HY Bond ETF (HYG)','IG Bond ETF (LQD)','EM Sov Debt (EMB)'],
   'Volatility': ['VIX','VXN (Nasdaq Vol)','Oil Vol (OVX)','Gold Vol (GVZ)'],
   'Risk Barometer': ['S&P 500','VIX','US HY OAS','WTI Crude (spot)','DXY'],
   'Safe Havens': ['Gold','Silver','USDJPY','USDCHF','US 10Y Yield','US 10Y Real Yield'],
