@@ -1,9 +1,10 @@
 {
-  "timestamp": "2026-03-21T10:33:40.995132Z",
+  "timestamp": "2026-03-21T11:25:36.699536Z",
   "n_assets": 131,
   "n_events": 13,
-  "n_rows": 10603,
-  "fred_failures": [
-    "BAMLHE00EHY0EY"
-  ]
+  "n_rows": 10607,
+  "fred_failures": [],
+  "schema_version": 2,
+  "pipeline_mode": "generated",
+  "as_of": "2026-03-21"
 }
