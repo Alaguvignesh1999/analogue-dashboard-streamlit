@@ -43,37 +43,38 @@ export function DetailTab() {
   const unit = unitLabel(meta);
 
   const { barData, stats } = useMemo(() => {
-    const fo = dayN + horizon;
-    const vals: { event: string; fwd: number }[] = [];
+    const forwardOffset = dayN + horizon;
+    const values: { event: string; fwd: number }[] = [];
+
     for (const eventName of selectedEvents) {
-      const atDn = poiRet(eventReturns, selectedAsset, eventName, dayN);
-      const atFo = poiRet(eventReturns, selectedAsset, eventName, fo);
-      if (!Number.isNaN(atDn) && !Number.isNaN(atFo)) {
-        vals.push({ event: eventName, fwd: atFo - atDn });
+      const startValue = poiRet(eventReturns, selectedAsset, eventName, dayN);
+      const finishValue = poiRet(eventReturns, selectedAsset, eventName, forwardOffset);
+      if (!Number.isNaN(startValue) && !Number.isNaN(finishValue)) {
+        values.push({ event: eventName, fwd: finishValue - startValue });
       }
     }
 
-    const fwds = vals.map((value) => value.fwd);
-    const med = nanMedian(fwds);
-    const mean = nanMean(fwds);
-    const std = nanStd(fwds);
-    const iqr = nanPercentile(fwds, 75) - nanPercentile(fwds, 25);
-    const hitRate = fwds.length > 0
-      ? fwds.filter((value) => (med >= 0 ? value > 0 : value < 0)).length / fwds.length
+    const forwardReturns = values.map((value) => value.fwd);
+    const med = nanMedian(forwardReturns);
+    const mean = nanMean(forwardReturns);
+    const std = nanStd(forwardReturns);
+    const iqr = nanPercentile(forwardReturns, 75) - nanPercentile(forwardReturns, 25);
+    const hitRate = forwardReturns.length > 0
+      ? forwardReturns.filter((value) => (med >= 0 ? value > 0 : value < 0)).length / forwardReturns.length
       : 0;
-    const dir = med >= 0 ? 1 : -1;
-    const sharpe = nanMean(fwds.map((value) => value * dir)) / (nanStd(fwds.map((value) => value * dir)) + 1e-9);
+    const direction = med >= 0 ? 1 : -1;
+    const sharpe = nanMean(forwardReturns.map((value) => value * direction)) / (nanStd(forwardReturns.map((value) => value * direction)) + 1e-9);
 
     let liveRet = Number.NaN;
     const startPoint = getLiveReturnPointAtOrBefore(live, selectedAsset, dayN);
-    const finishPoint = getLiveReturnPointAtOrBefore(live, selectedAsset, fo);
+    const finishPoint = getLiveReturnPointAtOrBefore(live, selectedAsset, forwardOffset);
     if (startPoint && finishPoint) {
       liveRet = finishPoint.value - startPoint.value;
     }
 
     return {
-      barData: vals.map((value) => ({
-        name: value.event.length > 14 ? `${value.event.slice(0, 14)}…` : value.event,
+      barData: values.map((value) => ({
+        name: value.event.length > 14 ? `${value.event.slice(0, 14)}...` : value.event,
         value: value.fwd,
       })),
       stats: {
@@ -83,10 +84,10 @@ export function DetailTab() {
         iqr,
         hitRate,
         sharpe,
-        worst: nanMin(fwds),
-        best: nanMax(fwds),
+        worst: nanMin(forwardReturns),
+        best: nanMax(forwardReturns),
         rating: stars(iqr, med),
-        n: fwds.length,
+        n: forwardReturns.length,
         liveRet,
       },
     };
@@ -97,8 +98,8 @@ export function DetailTab() {
   return (
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
-        title={`Detail — ${displayLabel(meta, selectedAsset)}`}
-        subtitle={`Effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} -> +${horizon}d (D+${dayN + horizon}) · ${selectedEvents.length} analogues`}
+        title={`Detail - ${displayLabel(meta, selectedAsset)}`}
+        subtitle={`Effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} -> +${horizon}d (D+${dayN + horizon}) | ${selectedEvents.length} analogues`}
         controls={
           <div className="flex items-center gap-2">
             <Select
@@ -122,6 +123,10 @@ export function DetailTab() {
           </div>
         ) : (
           <div className="space-y-4">
+            <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
+              This view compares the forward move from the effective live scoring day to the selected horizon for the chosen asset. The orange live marker uses the latest valid live observation on or before each point, so it stays aligned with the scoring basis.
+            </div>
+
             <div className="px-4 pt-4 grid grid-cols-4 gap-2">
               <StatBox label="Median" value={fmtReturn(stats.med, isRates)} color={stats.med >= 0 ? '#22c55e' : '#ef4444'} />
               <StatBox label="Mean" value={fmtReturn(stats.mean, isRates)} color="#00d4aa" />
@@ -140,7 +145,7 @@ export function DetailTab() {
             <div className="h-[320px] p-2">
               {barData.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-text-dim text-sm">
-                  No forward return data available
+                  No forward return data available.
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
@@ -162,7 +167,7 @@ export function DetailTab() {
                     />
                     <Tooltip
                       contentStyle={{ background: 'rgba(12,12,18,0.96)', border: '1px solid #2a2a3a', borderRadius: 2, fontSize: 11, fontFamily: 'JetBrains Mono' }}
-                      formatter={(value: any) => [fmtReturn(Number(value), isRates), 'Forward']}
+                      formatter={(value: unknown) => [fmtReturn(Number(value), isRates), 'Forward']}
                       labelFormatter={(name: string) => name}
                     />
                     <ReferenceLine y={0} stroke="#3a3a4e" strokeWidth={1} />
@@ -198,6 +203,7 @@ export function DetailTab() {
                 </div>
                 <span className="text-2xs text-text-dim">Convergence: {stats.rating}</span>
                 <span className="text-2xs text-text-dim">Events: {stats.n}/{selectedEvents.length}</span>
+                <span className="text-2xs text-text-dim">Score day: D+{dayN}{effectiveDate ? ` (${effectiveDate})` : ''}</span>
                 {!Number.isNaN(stats.liveRet) && (
                   <span className="text-2xs">
                     <span className="text-text-dim">Live: </span>

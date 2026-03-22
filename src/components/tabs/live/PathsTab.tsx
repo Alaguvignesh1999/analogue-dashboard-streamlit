@@ -53,15 +53,15 @@ export function PathsTab() {
 
   const chartData = useMemo(() => {
     const offsets = Array.from({ length: POST_WINDOW_TD + 1 }, (_, index) => index);
-    const comp = compositeReturn(eventReturns, selectedAsset, selectedEvents, scores);
+    const composite = compositeReturn(eventReturns, selectedAsset, selectedEvents, scores);
 
     return offsets.map((offset) => {
-      const point: Record<string, any> = { offset };
+      const point: Record<string, number> & { offset: number } = { offset };
       for (const eventName of selectedEvents) {
         const value = eventReturns[selectedAsset]?.[eventName]?.[offset];
         if (value !== undefined) point[eventName] = value;
       }
-      if (comp && comp[offset] !== undefined) point.Composite = comp[offset];
+      if (composite && composite[offset] !== undefined) point.Composite = composite[offset];
       if (live.returns?.[selectedAsset] && offset <= displayDayN) {
         const liveValue = live.returns[selectedAsset][offset];
         if (liveValue !== undefined) point.__live__ = liveValue;
@@ -78,9 +78,9 @@ export function PathsTab() {
     const rows = futurePois.map((poi) => {
       const values: number[] = [];
       for (const eventName of selectedEvents) {
-        const atDn = poiRet(eventReturns, selectedAsset, eventName, dayN);
-        const atPoi = poiRet(eventReturns, selectedAsset, eventName, poi.offset);
-        if (!Number.isNaN(atDn) && !Number.isNaN(atPoi)) values.push(atPoi - atDn);
+        const startValue = poiRet(eventReturns, selectedAsset, eventName, dayN);
+        const finishValue = poiRet(eventReturns, selectedAsset, eventName, poi.offset);
+        if (!Number.isNaN(startValue) && !Number.isNaN(finishValue)) values.push(finishValue - startValue);
       }
       const med = values.length >= 2 ? nanMedian(values) : Number.NaN;
       maxAbs = Math.max(maxAbs, Math.abs(med) || 0);
@@ -102,8 +102,8 @@ export function PathsTab() {
   return (
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
-        title={`Path — ${displayLabel(meta, selectedAsset)}`}
-        subtitle={`${selectedEvents.length} analogues · effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} · display D+${displayDayN} · ${unit}`}
+        title={`Path - ${displayLabel(meta, selectedAsset)}`}
+        subtitle={`${selectedEvents.length} analogues | effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} | display D+${displayDayN} | ${unit}`}
         controls={
           <div className="flex items-center gap-2">
             <Select label="" value={selectedClass} onChange={setSelectedClass} options={allClasses.map((groupName) => ({ value: groupName, label: groupName }))} />
@@ -117,9 +117,13 @@ export function PathsTab() {
           </div>
         ) : (
           <>
+            <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
+              The orange line is the live display path through the latest available calendar day, while the score marker shows the effective trading day used for matching. The composite line is the weighted analogue blend for the same asset and event window.
+            </div>
+
             <div className="px-4 pt-4 grid grid-cols-3 gap-3">
               <StatBox label="Live Path" value={`${chartStats.current > 0 ? '+' : ''}${chartStats.current.toFixed(1)}`} color={chartStats.current >= 0 ? '#22c55e' : '#ef4444'} />
-              <StatBox label="Range" value={`±${chartStats.range.toFixed(1)}`} color="#00d4aa" />
+              <StatBox label="Range" value={`+/-${chartStats.range.toFixed(1)}`} color="#00d4aa" />
               <StatBox label="Analogues" value={selectedEvents.length} color="#ffffff" />
             </div>
 
@@ -193,7 +197,7 @@ export function PathsTab() {
               >
                 <div className="text-2xs text-text-muted font-medium">{row.label}</div>
                 <div className={`text-sm font-mono font-semibold mt-1.5 ${Number.isNaN(row.med) ? 'text-text-dim' : row.med >= 0 ? 'text-up' : 'text-down'}`}>
-                  {Number.isNaN(row.med) ? '—' : fmtReturn(row.med, isRates)}
+                  {Number.isNaN(row.med) ? '--' : fmtReturn(row.med, isRates)}
                 </div>
                 <div className="text-[9px] text-text-dim mt-1">n={row.n}</div>
               </div>

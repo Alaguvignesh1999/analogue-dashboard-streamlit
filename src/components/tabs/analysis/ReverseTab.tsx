@@ -51,8 +51,8 @@ export function ReverseTab() {
       sharedAssets: score.sharedAssetCount,
     }));
 
-    const topResults = results.slice(0, topN).map((m, idx) => ({ ...m, rank: idx + 1 }));
-    const values = topResults.map(m => m.cosineSimilarity);
+    const topResults = results.slice(0, topN).map((match, index) => ({ ...match, rank: index + 1 }));
+    const values = topResults.map((match) => match.cosineSimilarity);
 
     return {
       matches: topResults,
@@ -64,16 +64,16 @@ export function ReverseTab() {
     };
   }, [eventReturns, eventTags, events, live.cpi, live.fed, live.tags, live.triggerZScore, macroContext, scoringDayN, scoringReturns, similarityAssets, topN, triggerZScores]);
 
-  const topNOptions = Array.from({ length: 11 }, (_, i) => {
-    const val = 3 + i * 1;
-    return { label: val.toString(), value: val.toString() };
+  const topNOptions = Array.from({ length: 11 }, (_, index) => {
+    const value = 3 + index;
+    return { label: value.toString(), value: value.toString() };
   });
 
   if (!live || !scoringReturns) {
     return (
       <ChartCard
         title="Reverse Analogue Lookup"
-        subtitle="Find historical events matching current return pattern via cosine similarity"
+        subtitle="Find historical events matching the current return pattern via cosine similarity"
       >
         <div className="flex items-center justify-center h-24 text-xs text-text-dim">
           No live data available. Load current market data to find analogues.
@@ -85,14 +85,14 @@ export function ReverseTab() {
   return (
     <ChartCard
       title="Reverse Analogue Lookup"
-      subtitle="Find historical events matching current return pattern via cosine similarity"
+      subtitle="Find historical events matching the current return pattern via cosine similarity"
     >
       <div className="p-4 space-y-4 animate-fade-in">
         <div className="flex items-end gap-3">
           <Select
             label="Top N"
             value={topN.toString()}
-            onChange={(val) => setTopN(parseInt(val))}
+            onChange={(value) => setTopN(parseInt(value, 10))}
             options={topNOptions}
           />
           <div className="text-2xs text-text-dim">
@@ -100,11 +100,15 @@ export function ReverseTab() {
           </div>
         </div>
 
+        <div className="text-2xs text-text-dim border border-border/40 bg-bg-cell/20 px-3 py-2">
+          Reverse lookup reuses the same quant-only path engine as analogue matching. Each score is based on the live return vector at the effective scoring day, using only assets with valid overlap for that specific event.
+        </div>
+
         <div className="grid grid-cols-3 gap-2">
           <StatBox
             label="Top Match"
             value={(stats.topScore * 100).toFixed(1)}
-            sub={`${stats.topEvent ? stats.topEvent.substring(0, 15) : '—'}`}
+            sub={`${stats.topEvent ? stats.topEvent.substring(0, 15) : '--'}`}
             color="#00d4aa"
           />
           <StatBox
@@ -123,12 +127,12 @@ export function ReverseTab() {
 
         {matches.length === 0 ? (
           <div className="flex items-center justify-center h-20 border border-border/40 rounded-sm bg-bg-cell/30 text-xs text-text-dim">
-            No matches found with available data
+            No matches found with available data.
           </div>
         ) : (
           <div className="space-y-2">
             {matches.map((match) => {
-              const pct = (match.cosineSimilarity * 100);
+              const pct = match.cosineSimilarity * 100;
               const barWidth = Math.max(pct, 3);
               return (
                 <div key={match.eventName} className="space-y-1">
@@ -158,8 +162,8 @@ export function ReverseTab() {
         )}
 
         <div className="text-2xs text-text-dim border-t border-border/40 pt-3 space-y-1">
-          <p>Cosine similarity of current return pattern (effective scoring day {scoringDayN}{scoringDate ? `, ${scoringDate}` : ''}) against historical event returns.</p>
-          <p className="text-text-dim/70">Asset count in parentheses indicates valid comparisons per event.</p>
+          <p>Cosine similarity of the current return pattern at effective scoring day D+{scoringDayN}{scoringDate ? ` (${scoringDate})` : ''} against historical event returns.</p>
+          <p className="text-text-dim/70">Asset count in parentheses indicates how many assets had valid overlap for that event.</p>
         </div>
       </div>
     </ChartCard>
