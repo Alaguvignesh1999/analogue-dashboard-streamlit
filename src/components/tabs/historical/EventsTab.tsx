@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Button, Badge, StatBox } from '@/components/ui/ChartCard';
+import { EVENTS as BASE_EVENTS } from '@/config/events';
 import {
   computeCustomEventReturns,
   getHistoricalCoverageRange,
@@ -18,6 +19,7 @@ const TAG_CONFIG: Record<string, { color: 'amber' | 'red' | 'green' | 'teal' | '
 };
 
 const AVAILABLE_TAGS = Object.keys(TAG_CONFIG);
+const BASE_EVENT_NAMES = new Set(BASE_EVENTS.map((event) => event.name));
 
 export function EventsTab() {
   const {
@@ -30,6 +32,7 @@ export function EventsTab() {
     provenance,
     assetMeta,
     addCustomEvent,
+    removeCustomEvent,
     customEvents,
   } = useDashboard();
 
@@ -38,6 +41,7 @@ export function EventsTab() {
   const [customTags, setCustomTags] = useState<Set<string>>(new Set());
   const [customStatus, setCustomStatus] = useState('');
   const [eventDateOverrides, setEventDateOverrides] = useState<Record<string, string>>({});
+  const [eventTagOverrides, setEventTagOverrides] = useState<Record<string, string[]>>({});
 
   const activeCount = activeEvents.size;
   const totalCount = events.length;
@@ -74,6 +78,10 @@ export function EventsTab() {
     }
     if (!customName.trim() || !customDate) {
       setCustomStatus('Enter an event name and date first.');
+      return;
+    }
+    if (events.some((event) => event.name === customName.trim())) {
+      setCustomStatus('That event name already exists. Edit the local event below instead of creating a duplicate.');
       return;
     }
 
@@ -246,7 +254,9 @@ export function EventsTab() {
               const active = activeEvents.has(event.name);
               const tags = eventTags[event.name] || new Set<string>();
               const customEvent = customEvents.find((item) => item.name === event.name);
+              const deletableCustomEvent = customEvent && !BASE_EVENT_NAMES.has(event.name);
               const effectiveDate = eventDateOverrides[event.name] || event.date;
+              const effectiveTags = eventTagOverrides[event.name] || Array.from(tags);
               const eventTrigger = dailyHistory ? getTriggerPriceForDate(dailyHistory, effectiveDate) : null;
               return (
                 <div
@@ -294,17 +304,70 @@ export function EventsTab() {
                           </span>
                         </span>
                         <Button
-                          onClick={() => handleApplyDateOverride(event.name, effectiveDate, Array.from(tags))}
+                          onClick={() => handleApplyDateOverride(event.name, effectiveDate, effectiveTags)}
                           size="xs"
                           variant="secondary"
                         >
-                          Apply Exact Date
+                          {customEvent ? 'Apply Event Update' : 'Apply Exact Date'}
                         </Button>
                       </div>
                     </div>
+                    {deletableCustomEvent && (
+                      <div className="space-y-2 mb-2">
+                        <div className="text-2xs text-text-dim">Local event tags</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {AVAILABLE_TAGS.map((tag) => {
+                            const selected = effectiveTags.includes(tag);
+                            return (
+                              <button
+                                key={`${event.name}-${tag}`}
+                                onClick={() => {
+                                  setEventTagOverrides((current) => {
+                                    const currentTags = current[event.name] || Array.from(tags);
+                                    const nextTags = currentTags.includes(tag)
+                                      ? currentTags.filter((value) => value !== tag)
+                                      : [...currentTags, tag];
+                                    return { ...current, [event.name]: nextTags };
+                                  });
+                                }}
+                                className={`px-2.5 py-0.5 text-[10px] border rounded-sm transition-all ${
+                                  selected
+                                    ? 'bg-[#00e5ff]/10 text-[#00e5ff] border-[#00e5ff]/30'
+                                    : 'bg-transparent text-[#4a4a5a] border-[#1e1e2e] hover:text-[#6a6a7a]'
+                                }`}
+                              >
+                                {tag}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center justify-end">
+                          <Button
+                            onClick={() => {
+                              removeCustomEvent(event.name);
+                              setEventTagOverrides((current) => {
+                                const next = { ...current };
+                                delete next[event.name];
+                                return next;
+                              });
+                              setEventDateOverrides((current) => {
+                                const next = { ...current };
+                                delete next[event.name];
+                                return next;
+                              });
+                              setCustomStatus(`Removed local event ${event.name}.`);
+                            }}
+                            size="xs"
+                            variant="danger"
+                          >
+                            Delete Added Event
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     {tags.size > 0 && (
                       <div className="flex flex-wrap gap-1.5">
-                        {Array.from(tags).map((tag) => (
+                        {effectiveTags.map((tag) => (
                           <Badge key={tag} color={TAG_CONFIG[tag]?.color || 'dim'} className="text-2xs">
                             {tag.replace(/_/g, ' ')}
                           </Badge>

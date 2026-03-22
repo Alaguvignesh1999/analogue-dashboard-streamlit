@@ -116,6 +116,7 @@ interface DashboardState {
   toggleEvent: (name: string) => void;
   setActiveEvents: (names: Set<string>) => void;
   addCustomEvent: (event: CustomEventDef, returns?: Record<string, Record<number, number>>) => void;
+  removeCustomEvent: (name: string) => void;
   hydrateCustomEvents: () => void;
 
   crossAssetSelection: Set<string>;
@@ -342,6 +343,27 @@ export const useDashboard = create<DashboardState>((set) => ({
     };
     const activeEvents = new Set(state.activeEvents);
     activeEvents.add(event.name);
+
+    persistCustomEvents(customEvents, eventReturns);
+
+    return { customEvents, events, eventReturns, eventTags, macroContext, activeEvents };
+  }),
+  removeCustomEvent: (name) => set((state) => {
+    const customEvents = state.customEvents.filter((event) => event.name !== name);
+    const events = state.events.filter((event) => event.name !== name);
+    const eventReturns: EventReturns = {};
+    for (const [label, seriesByEvent] of Object.entries(state.eventReturns)) {
+      const nextSeries = { ...seriesByEvent };
+      delete nextSeries[name];
+      eventReturns[label] = nextSeries;
+    }
+
+    const eventTags = { ...state.eventTags };
+    delete eventTags[name];
+    const macroContext = { ...state.macroContext };
+    delete macroContext[name];
+    const activeEvents = new Set(state.activeEvents);
+    activeEvents.delete(name);
 
     persistCustomEvents(customEvents, eventReturns);
 

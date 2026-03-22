@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Button, SliderControl } from '@/components/ui/ChartCard';
+import { ChartCard, SliderControl } from '@/components/ui/ChartCard';
 import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveScoringReturns } from '@/engine/live';
 import { buildDecayTimeline, dominantSegments } from '@/engine/decay';
 import { EVENT_COLORS } from '@/config/events';
@@ -16,8 +16,6 @@ import {
 export function DecayTab() {
   const { eventReturns, live, similarityAssets, events, activeEvents, scores, scoreCutoff } = useDashboard();
   const [step, setStep] = useState(1);
-  const [computing, setComputing] = useState(false);
-  const [timeline, setTimeline] = useState<ReturnType<typeof buildDecayTimeline> | null>(null);
 
   const scoringReturns = getLiveScoringReturns(live);
   const dayN = getEffectiveScoringDay(live, similarityAssets);
@@ -32,30 +30,10 @@ export function DecayTab() {
     }
     return events.filter((event) => activeEvents.has(event.name)).map((event) => event.name);
   }, [activeEvents, activeScoreSet, events, scoreCutoff]);
-  const timelineKey = useMemo(
-    () => JSON.stringify({
-      selectedEventNames,
-      similarityAssets,
-      dayN,
-      analysisDayN: live.analysisDayN,
-      actualDay0: live.actualDay0,
-    }),
-    [dayN, live.actualDay0, live.analysisDayN, selectedEventNames, similarityAssets],
-  );
-
-  useEffect(() => {
-    setTimeline(null);
-  }, [timelineKey]);
-
-  function handleBuild() {
-    if (!scoringReturns || dayN < 1 || selectedEventNames.length === 0) return;
-    setComputing(true);
-    requestAnimationFrame(() => {
-      const built = buildDecayTimeline(eventReturns, scoringReturns, dayN, selectedEventNames, step, similarityAssets);
-      setTimeline(built);
-      setComputing(false);
-    });
-  }
+  const timeline = useMemo(() => {
+    if (!scoringReturns || dayN < 1 || selectedEventNames.length === 0) return null;
+    return buildDecayTimeline(eventReturns, scoringReturns, dayN, selectedEventNames, step, similarityAssets);
+  }, [dayN, eventReturns, scoringReturns, selectedEventNames, similarityAssets, step]);
 
   const { scoreData, rankData, segments, eventNames } = useMemo(() => {
     if (!timeline || timeline.length === 0) return { scoreData: [], rankData: [], segments: [], eventNames: [] as string[] };
@@ -98,22 +76,17 @@ export function DecayTab() {
         title="Signal Decay Tracker"
         subtitle={`Day 0 -> effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} | ${selectedEventNames.length} active analogue events`}
         controls={
-          <div className="flex items-center gap-3">
-            <SliderControl label="Step" value={step} onChange={setStep} min={1} max={5} suffix="d" />
-            <Button onClick={handleBuild} disabled={computing || !scoringReturns || dayN < 1 || selectedEventNames.length === 0}>
-              {computing ? 'Computing...' : timeline ? 'Rerun Analysis' : 'Build Decay Chart'}
-            </Button>
-          </div>
+          <SliderControl label="Step" value={step} onChange={setStep} min={1} max={5} suffix="d" />
         }
       >
         {!timeline ? (
           <div className="h-[400px] flex items-center justify-center text-text-dim text-xs">
-            {!live.returns ? 'Pull live data in L1 Config first' : selectedEventNames.length === 0 ? 'Run analogue matching or re-enable events first' : 'Click "Build Decay Chart" to compute'}
+            {!live.returns ? 'Pull live data in L1 Config first' : selectedEventNames.length === 0 ? 'Run analogue matching or re-enable events first' : 'Decay will appear once there is a valid live scoring window.'}
           </div>
         ) : (
           <div className="space-y-2">
             <div className="px-4 pt-2 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-              Decay now respects the current active event selection and analogue cutoff. If you deselect an event in Historical Events or tighten the live analogue set, rerun analysis here to rebuild the timeline on that filtered event universe.
+              Decay now recomputes automatically from the current active event selection, live analysis day, and analogue cutoff. If you deselect an event or change the live override, the chart updates from that filtered state instead of keeping stale analysis.
             </div>
             <div className="px-4 pt-2">
               <span className="text-2xs text-text-muted">Path similarity score over time on the same selected live sim asset set.</span>
