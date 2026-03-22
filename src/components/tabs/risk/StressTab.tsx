@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel, unitLabel } from '@/engine/returns';
+import { getLiveScoringDay } from '@/engine/live';
 import { selectEvents } from '@/engine/similarity';
 import { PORTFOLIO_SCENARIOS } from '@/config/engine';
 import { nanMean, nanMedian, nanMin, nanMax, nanPercentile } from '@/lib/math';
@@ -26,7 +27,7 @@ export function StressTab() {
   );
 
   const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
-  const dayN = live.dayN ?? 0;
+  const dayN = getLiveScoringDay(live);
 
   // Stress test: for each analogue event, compute portfolio PnL
   const stressResults = useMemo(() => {

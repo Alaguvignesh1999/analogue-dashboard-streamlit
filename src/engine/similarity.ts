@@ -49,14 +49,35 @@ export function macroSim(
   return score;
 }
 
-function pathVec(returnsByAsset: Record<string, Record<number, number>>, assets: string[], dayN: number): number[] {
+function nearestValueAtOrBefore(
+  series: Record<number, number> | undefined,
+  targetOffset: number,
+  tolerance: number,
+): number {
+  if (!series) return Number.NaN;
+  const offsets = Object.keys(series)
+    .map(Number)
+    .filter((offset) => Math.abs(offset - targetOffset) <= tolerance)
+    .sort((left, right) => left - right);
+  if (offsets.length === 0) return Number.NaN;
+  const below = offsets.filter((offset) => offset <= targetOffset);
+  const bestOffset = below.length > 0 ? below[below.length - 1] : offsets[0];
+  return series[bestOffset];
+}
+
+function pathVec(
+  returnsByAsset: Record<string, Record<number, number>>,
+  assets: string[],
+  dayN: number,
+): number[] {
   const offsets = Array.from({ length: dayN + 1 }, (_, index) => index);
   const vector: number[] = [];
 
   for (const asset of assets) {
     const series = returnsByAsset[asset];
     for (const offset of offsets) {
-      vector.push(series?.[offset] ?? 0);
+      const value = nearestValueAtOrBefore(series, offset, 1);
+      vector.push(Number.isNaN(value) ? 0 : value);
     }
   }
 
@@ -79,17 +100,20 @@ export function runAnalogueMatch(
   const macroContext = options.macroContext || MACRO_CONTEXT;
   const simAssets = options.simAssets || SIMILARITY_ASSET_POOL;
   const weights = options.weights || ANALOGUE_WEIGHTS;
-
-  const livePointVec = simAssets.map((asset) => {
-    const series = liveReturns[asset];
-    if (!series) return Number.NaN;
-    const offsets = Object.keys(series).map(Number).filter((offset) => Math.abs(offset - dayN) <= 2);
-    if (offsets.length === 0) return Number.NaN;
-    const bestOffset = offsets.reduce((left, right) => (Math.abs(left - dayN) <= Math.abs(right - dayN) ? left : right));
-    return series[bestOffset];
-  });
-
   const livePool = simAssets.filter((asset) => liveReturns[asset] && Object.keys(liveReturns[asset]).length > 0);
+  const availableLiveOffsets = new Set<number>();
+
+  for (const asset of livePool) {
+    for (const offset of Object.keys(liveReturns[asset]).map(Number)) {
+      availableLiveOffsets.add(offset);
+    }
+  }
+
+  const scoringDayN = availableLiveOffsets.size > 0
+    ? Math.min(dayN, Math.max(...Array.from(availableLiveOffsets)))
+    : dayN;
+
+  const livePointVec = simAssets.map((asset) => nearestValueAtOrBefore(liveReturns[asset], scoringDayN, 2));
   const weightSum = weights.quant + weights.tag + weights.macro;
   const normalizedWeights = weightSum > 0
     ? {
@@ -103,8 +127,7 @@ export function runAnalogueMatch(
 
   for (const event of events) {
     const eventName = event.name;
-
-    const histPointVec = simAssets.map((asset) => poiRet(eventReturns, asset, eventName, dayN));
+    const histPointVec = simAssets.map((asset) => poiRet(eventReturns, asset, eventName, scoringDayN));
     const quantPoint = (cosine(livePointVec, histPointVec) + 1) / 2;
 
     const sharedAssets = livePool.filter((asset) => {
@@ -112,16 +135,16 @@ export function runAnalogueMatch(
       return hist && Object.keys(hist).length > 0;
     });
 
-    let quantPath = 0.5;
-    if (sharedAssets.length >= 2) {
-      const livePathShared = pathVec(liveReturns, sharedAssets, dayN);
-      const historicalPathDict: Record<string, Record<number, number>> = {};
-      for (const asset of sharedAssets) {
-        historicalPathDict[asset] = eventReturns[asset][eventName];
+    const livePathVec = pathVec(liveReturns, simAssets, scoringDayN);
+    const historicalPathDict: Record<string, Record<number, number>> = {};
+    for (const asset of simAssets) {
+      const series = eventReturns[asset]?.[eventName];
+      if (series) {
+        historicalPathDict[asset] = series;
       }
-      const histPathShared = pathVec(historicalPathDict, sharedAssets, dayN);
-      quantPath = (cosine(livePathShared, histPathShared) + 1) / 2;
     }
+    const histPathVec = pathVec(historicalPathDict, simAssets, scoringDayN);
+    const quantPath = (cosine(livePathVec, histPathVec) + 1) / 2;
 
     const tag = tagSim(liveTags, eventTags[eventName] || new Set());
     const macro = macroSim(

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getTriggerPriceForDate } from '@/engine/customEvents';
+import { loadDailyHistoryFromDisk } from '@/lib/serverArtifacts';
 
 // Fetches Brent Futures price via Yahoo Finance API
 // If ?date= provided: returns close on/near that date (Day 0 price)
@@ -43,17 +45,18 @@ function extractPrice(result: any, dateParam?: string): { price: number; date: s
 
   if (dateParam && dateParam.length === 10) {
     const targetTs = new Date(dateParam).getTime() / 1000;
-    // Forward search: on or after target
-    for (let i = 0; i < timestamps.length; i++) {
-      if (timestamps[i] >= targetTs && closes[i] != null) {
+    // Preferred: latest available close on or before target date.
+    for (let i = closes.length - 1; i >= 0; i--) {
+      if (timestamps[i] <= targetTs && closes[i] != null) {
         return {
           price: Math.round(closes[i] * 100) / 100,
           date: new Date(timestamps[i] * 1000).toISOString().split('T')[0],
         };
       }
     }
-    // Fallback: closest before target
-    for (let i = closes.length - 1; i >= 0; i--) {
+
+    // Fallback only if there is genuinely no earlier observation in range.
+    for (let i = 0; i < timestamps.length; i++) {
       if (closes[i] != null) {
         return {
           price: Math.round(closes[i] * 100) / 100,
@@ -81,6 +84,23 @@ export async function GET(req: NextRequest) {
   const dateParam = req.nextUrl.searchParams.get('date');
 
   try {
+    const dailyHistory = await loadDailyHistoryFromDisk();
+    if (dailyHistory) {
+      const cached = dateParam
+        ? getTriggerPriceForDate(dailyHistory, dateParam)
+        : getTriggerPriceForDate(dailyHistory, dailyHistory.asOf || dailyHistory.dates[dailyHistory.dates.length - 1] || '');
+
+      if (cached) {
+        return NextResponse.json({
+          ticker: TRIGGER_TICKER,
+          price: cached.value,
+          date: cached.date,
+          source: 'generated-history-cache',
+          asOf: dailyHistory.asOf || null,
+        });
+      }
+    }
+
     let url: string;
     if (dateParam && dateParam.length === 10) {
       const targetDate = new Date(dateParam);

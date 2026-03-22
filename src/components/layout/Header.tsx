@@ -31,11 +31,13 @@ export function Header() {
       };
     }
     return {
-      label: 'Live data',
-      detail: provenance.liveAsOf ? new Date(provenance.liveAsOf).toLocaleDateString() : 'Loaded',
+      label: provenance.liveMode === 'shared' ? 'Shared live' : 'Private live',
+      detail: provenance.liveSnapshotDate
+        ? `snapshot ${new Date(provenance.liveSnapshotDate).toLocaleDateString()}`
+        : (provenance.liveAsOf ? new Date(provenance.liveAsOf).toLocaleDateString() : 'Loaded'),
       tone: 'teal' as const,
     };
-  }, [provenance.liveAsOf, provenance.liveSource]);
+  }, [provenance.liveAsOf, provenance.liveMode, provenance.liveSnapshotDate, provenance.liveSource]);
 
   return (
     <header className="h-11 border-b border-border/60 bg-bg-panel/95 flex items-center justify-between px-4 shrink-0 backdrop-blur-sm">

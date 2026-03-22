@@ -22,18 +22,20 @@ export function AnaloguesTab() {
     similarityAssets,
   } = useDashboard();
 
-  const hasLive = live.returns !== null && live.dayN !== null;
+  const scoringDayN = live.tradingDayN ?? live.dayN ?? null;
+  const scoringReturns = live.scoringReturns ?? live.returns;
+  const hasLive = scoringReturns !== null && scoringDayN !== null;
 
   const handleMatch = useCallback(() => {
-    if (!live.returns || live.dayN === null) return;
+    if (!scoringReturns || scoringDayN === null) return;
     const result = runAnalogueMatch(
       eventReturns,
-      live.returns,
+      scoringReturns,
       live.tags,
       live.triggerZScore,
       live.cpi,
       live.fed,
-      live.dayN,
+      scoringDayN,
       triggerZScores,
       {
         weights: analogueWeights,
@@ -44,7 +46,7 @@ export function AnaloguesTab() {
       }
     );
     setScores(result);
-  }, [analogueWeights, eventReturns, eventTags, events, live, macroContext, setScores, triggerZScores]);
+  }, [analogueWeights, eventReturns, eventTags, events, live.cpi, live.fed, live.tags, live.triggerZScore, macroContext, scoringDayN, scoringReturns, setScores, triggerZScores]);
 
   const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
 
@@ -62,7 +64,7 @@ export function AnaloguesTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title="Analogue Matching"
-        subtitle={`${scores.length} events scored | Day+${live.dayN ?? 0} live path | weighted scoring`}
+        subtitle={`${scores.length} events scored | scoring D+${scoringDayN ?? 0} | weighted scoring`}
         controls={
           <div className="flex items-center gap-3">
             <SliderControl label="Cutoff" value={scoreCutoff} onChange={setCutoff} min={0} max={1} step={0.05} />

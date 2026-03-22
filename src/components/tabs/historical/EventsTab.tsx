@@ -3,7 +3,11 @@
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Button, Badge, StatBox } from '@/components/ui/ChartCard';
-import { computeCustomEventReturns, getTriggerPriceForDate } from '@/engine/customEvents';
+import {
+  computeCustomEventReturns,
+  getHistoricalCoverageRange,
+  getTriggerPriceForDate,
+} from '@/engine/customEvents';
 
 const TAG_CONFIG: Record<string, { color: 'amber' | 'red' | 'green' | 'teal' | 'blue' | 'purple' }> = {
   energy_shock: { color: 'amber' },
@@ -26,6 +30,7 @@ export function EventsTab() {
     provenance,
     assetMeta,
     addCustomEvent,
+    customEvents,
   } = useDashboard();
 
   const [customName, setCustomName] = useState('');
@@ -36,6 +41,10 @@ export function EventsTab() {
 
   const activeCount = activeEvents.size;
   const totalCount = events.length;
+  const coverage = useMemo(
+    () => (dailyHistory ? getHistoricalCoverageRange(dailyHistory) : { startDate: null, endDate: null }),
+    [dailyHistory]
+  );
 
   const triggerPrice = useMemo(() => {
     if (!dailyHistory || !customDate) return null;
@@ -68,19 +77,38 @@ export function EventsTab() {
       return;
     }
 
-    const returns = computeCustomEventReturns(dailyHistory, assetMeta, customDate);
+    if (coverage.startDate && customDate < coverage.startDate) {
+      setCustomStatus(`Date is before historical coverage starts (${coverage.startDate}).`);
+      return;
+    }
+    if (coverage.endDate && customDate > coverage.endDate) {
+      setCustomStatus(`Date is after historical coverage ends (${coverage.endDate}).`);
+      return;
+    }
+
+    const computed = computeCustomEventReturns(dailyHistory, assetMeta, customDate);
+    if (!computed.resolvedAnchorDate) {
+      setCustomStatus('Could not resolve a trading-day anchor on or before that date.');
+      return;
+    }
+
     addCustomEvent(
       {
         name: customName.trim(),
-        date: customDate,
+        date: computed.resolvedAnchorDate,
         source: 'custom',
         tags: Array.from(customTags),
         trigger: triggerPrice?.value ?? null,
         createdAt: new Date().toISOString(),
+        selectedDate: customDate,
+        resolvedAnchorDate: computed.resolvedAnchorDate,
+        storageScope: 'local',
       },
-      returns,
+      computed.returnsByAsset,
     );
-    setCustomStatus(`Applied ${customName.trim()} across ${Object.keys(returns).length} assets.`);
+    setCustomStatus(
+      `Applied ${customName.trim()} locally across ${Object.keys(computed.returnsByAsset).length} assets. Anchor: ${computed.resolvedAnchorDate}.`
+    );
     setCustomName('');
     setCustomDate('');
     setCustomTags(new Set());
@@ -96,20 +124,39 @@ export function EventsTab() {
       return;
     }
 
-    const returns = computeCustomEventReturns(dailyHistory, assetMeta, date);
+    if (coverage.startDate && date < coverage.startDate) {
+      setCustomStatus(`Date is before historical coverage starts (${coverage.startDate}).`);
+      return;
+    }
+    if (coverage.endDate && date > coverage.endDate) {
+      setCustomStatus(`Date is after historical coverage ends (${coverage.endDate}).`);
+      return;
+    }
+
+    const computed = computeCustomEventReturns(dailyHistory, assetMeta, date);
+    if (!computed.resolvedAnchorDate) {
+      setCustomStatus(`Could not resolve a trading-day anchor for ${eventName}.`);
+      return;
+    }
+
     const trigger = getTriggerPriceForDate(dailyHistory, date);
     addCustomEvent(
       {
         name: eventName,
-        date,
+        date: computed.resolvedAnchorDate,
         source: 'custom',
         tags,
         trigger: trigger?.value ?? null,
         createdAt: new Date().toISOString(),
+        selectedDate: date,
+        resolvedAnchorDate: computed.resolvedAnchorDate,
+        storageScope: 'local',
       },
-      returns,
+      computed.returnsByAsset,
     );
-    setCustomStatus(`Updated ${eventName} to ${date} across ${Object.keys(returns).length} assets.`);
+    setCustomStatus(
+      `Updated ${eventName} locally to ${date} (anchor ${computed.resolvedAnchorDate}) across ${Object.keys(computed.returnsByAsset).length} assets.`
+    );
   };
 
   return (
@@ -137,6 +184,9 @@ export function EventsTab() {
 
           <div className="p-3 border border-border/40 bg-bg-cell/20 rounded-sm space-y-3">
             <div className="text-2xs text-text-muted uppercase tracking-wider">Custom Event Creation</div>
+            <div className="text-2xs text-text-dim">
+              Historical coverage: {coverage.startDate || '--'} to {coverage.endDate || '--'} | Stored locally in this browser only
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <input
                 value={customName}
@@ -192,6 +242,7 @@ export function EventsTab() {
             {events.map((event) => {
               const active = activeEvents.has(event.name);
               const tags = eventTags[event.name] || new Set<string>();
+              const customEvent = customEvents.find((item) => item.name === event.name);
               const effectiveDate = eventDateOverrides[event.name] || event.date;
               const eventTrigger = dailyHistory ? getTriggerPriceForDate(dailyHistory, effectiveDate) : null;
               return (
@@ -211,7 +262,17 @@ export function EventsTab() {
                     <div className="flex items-baseline gap-2 mb-2">
                       <span className="text-sm font-semibold text-text-primary font-mono">{event.name}</span>
                       <span className="text-2xs text-text-muted font-mono">{event.date}</span>
+                      {customEvent && (
+                        <Badge color="teal" className="text-2xs">
+                          local only
+                        </Badge>
+                      )}
                     </div>
+                    {customEvent && (
+                      <div className="text-2xs text-text-dim mb-2">
+                        Selected date {customEvent.selectedDate} | Resolved anchor {customEvent.resolvedAnchorDate || '--'}
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-[180px_auto] gap-2 mb-2">
                       <input
                         type="date"

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Button, Badge } from '@/components/ui/ChartCard';
 import { ALL_TAGS } from '@/config/events';
-import { SIMILARITY_ASSET_POOL, TRIGGER_ASSET } from '@/config/engine';
+import { DEFAULT_LIVE_SIM_ASSETS, TRIGGER_ASSET } from '@/config/engine';
 import { displayLabel } from '@/engine/returns';
 
 export function LiveConfigTab() {
@@ -17,6 +17,7 @@ export function LiveConfigTab() {
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [currentPriceDate, setCurrentPriceDate] = useState('');
   const [priceStatus, setPriceStatus] = useState('');
+  const [assetQuery, setAssetQuery] = useState('');
 
   const fetchPrice = useCallback(async (dateStr?: string): Promise<{ price: number; date: string } | null> => {
     try {
@@ -56,9 +57,19 @@ export function LiveConfigTab() {
   }, [fetchBothPrices, live.day0]);
 
   const similarityOptions = useMemo(
-    () => SIMILARITY_ASSET_POOL.filter((asset) => allLabels.includes(asset)),
-    [allLabels]
+    () => [...allLabels].sort((left, right) => displayLabel(assetMeta[left], left).localeCompare(displayLabel(assetMeta[right], right))),
+    [allLabels, assetMeta]
   );
+
+  const filteredSimilarityOptions = useMemo(() => {
+    const query = assetQuery.trim().toLowerCase();
+    if (!query) return similarityOptions;
+    return similarityOptions.filter((asset) => {
+      const label = displayLabel(assetMeta[asset], asset).toLowerCase();
+      const assetClass = (assetMeta[asset]?.class || '').toLowerCase();
+      return label.includes(query) || asset.toLowerCase().includes(query) || assetClass.includes(query);
+    });
+  }, [assetMeta, assetQuery, similarityOptions]);
 
   const handleDateChange = useCallback((newDate: string) => {
     setLive({ day0: newDate });
@@ -75,13 +86,15 @@ export function LiveConfigTab() {
     setStatus('Pulling live data...');
 
     try {
-      const response = await fetch(`/api/live-pull?date=${live.day0}&assets=all`);
+      const response = await fetch(`/api/live-pull?date=${live.day0}&assets=all&mode=shared`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
       if (data.error) throw new Error(data.error);
 
       const returns: Record<string, Record<number, number>> = {};
       const levels: Record<string, Record<number, number>> = {};
+      const scoringReturns: Record<string, Record<number, number>> = {};
+      const scoringLevels: Record<string, Record<number, number>> = {};
 
       for (const [label, series] of Object.entries(data.returns || {})) {
         returns[label] = {};
@@ -95,24 +108,46 @@ export function LiveConfigTab() {
           levels[label][parseInt(offset, 10)] = value;
         }
       }
+      for (const [label, series] of Object.entries(data.scoringReturns || {})) {
+        scoringReturns[label] = {};
+        for (const [offset, value] of Object.entries(series as Record<string, number>)) {
+          scoringReturns[label][parseInt(offset, 10)] = value;
+        }
+      }
+      for (const [label, series] of Object.entries(data.scoringLevels || {})) {
+        scoringLevels[label] = {};
+        for (const [offset, value] of Object.entries(series as Record<string, number>)) {
+          scoringLevels[label][parseInt(offset, 10)] = value;
+        }
+      }
 
       setLive({
         returns,
         levels,
+        scoringReturns,
+        scoringLevels,
         dayN: data.dayN,
+        tradingDayN: data.tradingDayN ?? null,
         triggerPctile: data.triggerZScore ?? null,
         triggerZScore: data.triggerZScore ?? null,
         triggerDate: data.triggerDate ?? data.actualDay0 ?? live.day0,
         actualDay0: data.actualDay0 ?? live.day0,
         businessDates: Array.isArray(data.businessDates) ? data.businessDates : [],
         asOfDate: data.asOfDate ?? data.timestamp ?? null,
+        requestMode: data.provenance?.mode ?? (data.requestMode || 'private'),
+        snapshotDate: data.snapshotDate ?? null,
+        assetStatus: data.assetStatus || {},
+        warnings: Array.isArray(data.warnings) ? data.warnings : [],
       });
       setProvenance({
         liveSource: 'live',
+        liveMode: data.provenance?.mode ?? 'private',
         liveAsOf: data.asOfDate ?? data.timestamp ?? null,
+        liveSnapshotDate: data.snapshotDate ?? null,
       });
 
-      setStatus(`${live.name} loaded: Day+${data.dayN} across ${Object.keys(returns).length} assets`);
+      const modeLabel = data.provenance?.mode === 'shared' ? 'shared snapshot' : 'private scenario';
+      setStatus(`${live.name} loaded from ${modeLabel}: Day+${data.dayN} across ${Object.keys(returns).length} assets`);
     } catch (error: any) {
       resetLive();
       setStatus(`Live pull failed: ${error.message}. Demo mode is now manual only.`);
@@ -154,15 +189,22 @@ export function LiveConfigTab() {
     setLive({
       returns: mockReturns,
       levels: mockLevels,
+      scoringReturns: mockReturns,
+      scoringLevels: mockLevels,
       dayN: 25,
+      tradingDayN: 25,
       triggerPctile: 0.8,
       triggerZScore: 0.8,
       triggerDate: live.day0,
       actualDay0: live.day0,
       businessDates: Array.from({ length: 26 }, (_, index) => `D+${index}`),
       asOfDate: today,
+      requestMode: null,
+      snapshotDate: null,
+      assetStatus: {},
+      warnings: [],
     });
-    setProvenance({ liveSource: 'demo', liveAsOf: today });
+    setProvenance({ liveSource: 'demo', liveMode: 'demo', liveAsOf: today, liveSnapshotDate: null });
     setStatus(`Demo mode active with ${assets.length} assets`);
   }
 
@@ -225,8 +267,26 @@ export function LiveConfigTab() {
           </Field>
 
           <Field label="Live Sim Asset Comparer">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <Button size="xs" variant="secondary" onClick={() => setSimilarityAssets(DEFAULT_LIVE_SIM_ASSETS.filter((asset) => allLabels.includes(asset)))}>
+                Default 5
+              </Button>
+              <Button size="xs" variant="secondary" onClick={() => setSimilarityAssets([...allLabels])}>
+                Select All Assets
+              </Button>
+              <Button size="xs" variant="ghost" onClick={() => setSimilarityAssets([])}>
+                Clear
+              </Button>
+              <Badge color="teal">{similarityAssets.length} selected</Badge>
+            </div>
+            <input
+              value={assetQuery}
+              onChange={(event) => setAssetQuery(event.target.value)}
+              placeholder="Search all assets for live comparison..."
+              className="input-field mb-3"
+            />
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {similarityOptions.map((asset) => {
+              {filteredSimilarityOptions.map((asset) => {
                 const selected = similarityAssets.includes(asset);
                 return (
                   <button
@@ -356,17 +416,32 @@ export function LiveConfigTab() {
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-2 h-2 rounded-full bg-[#ffab40] animate-pulse" />
                 <span className="text-xs text-[#ffab40] font-medium">
-                  {provenance.liveSource === 'demo' ? 'Demo event active' : 'Live event active'}
-                </span>
-              </div>
-              <div className="grid grid-cols-4 gap-3 text-[10px] text-[#6a6a7a]">
-                <div>Day+{live.dayN}</div>
-                <div>{Object.keys(live.returns || {}).length} assets</div>
-                <div>{TRIGGER_ASSET}: ${live.trigger?.toFixed(2)}</div>
-                <div>As of: {live.asOfDate ? new Date(live.asOfDate).toLocaleDateString() : '--'}</div>
-              </div>
+              {provenance.liveSource === 'demo'
+                ? 'Demo event active'
+                : live.requestMode === 'shared'
+                  ? 'Shared live snapshot active'
+                  : 'Private live scenario active'}
+            </span>
+          </div>
+          <div className="grid grid-cols-5 gap-3 text-[10px] text-[#6a6a7a]">
+            <div>Day+{live.dayN}</div>
+            <div>Trading D+{live.tradingDayN ?? '--'}</div>
+            <div>{Object.keys(live.returns || {}).length} assets</div>
+            <div>{TRIGGER_ASSET}: ${live.trigger?.toFixed(2)}</div>
+            <div>As of: {live.asOfDate ? new Date(live.asOfDate).toLocaleDateString() : '--'}</div>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-[10px] text-[#6a6a7a] mt-2">
+            <div>Mode: {live.requestMode || (provenance.liveSource === 'demo' ? 'demo' : '--')}</div>
+            <div>Snapshot: {live.snapshotDate || '--'}</div>
+            <div>Warnings: {live.warnings.length}</div>
+          </div>
+          {live.warnings.length > 0 && (
+            <div className="mt-2 text-[10px] text-[#ffab40]">
+              {live.warnings.join(' | ')}
             </div>
           )}
+        </div>
+      )}
         </div>
       </ChartCard>
     </div>

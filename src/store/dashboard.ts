@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { EventReturns, AssetMeta } from '@/engine/returns';
 import { AnalogueScore } from '@/engine/similarity';
-import { ANALOGUE_WEIGHTS, DATA_SCHEMA_VERSION, SIMILARITY_ASSET_POOL } from '@/config/engine';
+import { ANALOGUE_WEIGHTS, DATA_SCHEMA_VERSION, DEFAULT_LIVE_SIM_ASSETS } from '@/config/engine';
 import { EVENTS, EVENT_TAGS, MACRO_CONTEXT, EventDef, MacroContext } from '@/config/events';
 import { AvailabilityWindow } from '@/config/availability';
-import { DataProvenance, DailyHistoryPayload } from '@/engine/types';
+import { DataProvenance, DailyHistoryPayload, LiveAssetStatus, LiveRequestMode } from '@/engine/types';
+import liveDefaults from '../../config/live_defaults.json';
 
 export type TabGroup = 'historical' | 'live' | 'analysis' | 'risk' | 'tools';
 export type TabId = string;
@@ -14,6 +15,9 @@ export interface CustomEventDef extends EventDef {
   tags: string[];
   trigger: number | null;
   createdAt: string;
+  selectedDate: string;
+  resolvedAnchorDate: string | null;
+  storageScope: 'local';
 }
 
 interface LiveState {
@@ -28,10 +32,17 @@ interface LiveState {
   fed: string;
   returns: Record<string, Record<number, number>> | null;
   levels: Record<string, Record<number, number>> | null;
+  scoringReturns: Record<string, Record<number, number>> | null;
+  scoringLevels: Record<string, Record<number, number>> | null;
   dayN: number | null;
+  tradingDayN: number | null;
   actualDay0: string | null;
   businessDates: string[];
   asOfDate: string | null;
+  requestMode: LiveRequestMode | null;
+  snapshotDate: string | null;
+  assetStatus: Record<string, LiveAssetStatus>;
+  warnings: string[];
 }
 
 interface AnalogueWeightsState {
@@ -150,7 +161,9 @@ export const useDashboard = create<DashboardState>((set) => ({
     historicalAsOf: null,
     historicalLoadedAt: null,
     liveSource: 'none',
+    liveMode: 'none',
     liveAsOf: null,
+    liveSnapshotDate: null,
     warnings: [],
     schemaVersion: DATA_SCHEMA_VERSION,
   },
@@ -183,7 +196,9 @@ export const useDashboard = create<DashboardState>((set) => ({
         historicalAsOf: data.historicalAsOf,
         historicalLoadedAt: new Date().toISOString(),
         liveSource: state.provenance.liveSource,
+        liveMode: state.provenance.liveMode,
         liveAsOf: state.provenance.liveAsOf,
+        liveSnapshotDate: state.provenance.liveSnapshotDate,
         warnings: data.warnings,
         schemaVersion: data.schemaVersion,
       },
@@ -196,27 +211,35 @@ export const useDashboard = create<DashboardState>((set) => ({
   })),
 
   live: {
-    name: 'Iran War 2026',
-    day0: '2026-02-28',
-    tags: new Set(['energy_shock', 'military_conflict']),
+    name: liveDefaults.name,
+    day0: liveDefaults.day0,
+    tags: new Set(liveDefaults.tags),
     trigger: 70,
     triggerPctile: null,
     triggerZScore: null,
     triggerDate: null,
-    cpi: 'mid',
-    fed: 'hold',
+    cpi: liveDefaults.cpi,
+    fed: liveDefaults.fed,
     returns: null,
     levels: null,
+    scoringReturns: null,
+    scoringLevels: null,
     dayN: null,
+    tradingDayN: null,
     actualDay0: null,
     businessDates: [],
     asOfDate: null,
+    requestMode: null,
+    snapshotDate: null,
+    assetStatus: {},
+    warnings: [],
   },
   setLive: (l) => set((state) => ({
     live: { ...state.live, ...l },
     provenance: {
       ...state.provenance,
       liveAsOf: l.asOfDate ?? state.provenance.liveAsOf,
+      liveSnapshotDate: l.snapshotDate ?? state.provenance.liveSnapshotDate,
     },
   })),
   resetLive: () => set((state) => ({
@@ -224,10 +247,17 @@ export const useDashboard = create<DashboardState>((set) => ({
       ...state.live,
       returns: null,
       levels: null,
+      scoringReturns: null,
+      scoringLevels: null,
       dayN: null,
+      tradingDayN: null,
       actualDay0: null,
       businessDates: [],
       asOfDate: null,
+      requestMode: null,
+      snapshotDate: null,
+      assetStatus: {},
+      warnings: [],
       triggerPctile: null,
       triggerZScore: null,
       triggerDate: null,
@@ -235,7 +265,9 @@ export const useDashboard = create<DashboardState>((set) => ({
     provenance: {
       ...state.provenance,
       liveSource: 'none',
+      liveMode: 'none',
       liveAsOf: null,
+      liveSnapshotDate: null,
     },
   })),
 
@@ -258,7 +290,7 @@ export const useDashboard = create<DashboardState>((set) => ({
       },
     };
   }),
-  similarityAssets: [...SIMILARITY_ASSET_POOL],
+  similarityAssets: [...DEFAULT_LIVE_SIM_ASSETS],
   setSimilarityAssets: (assets) => set({ similarityAssets: assets }),
 
   horizon: 21,
@@ -317,10 +349,20 @@ export const useDashboard = create<DashboardState>((set) => ({
     const raw = window.localStorage.getItem(CUSTOM_EVENTS_STORAGE_KEY);
     if (!raw) return {};
     try {
-      const parsed = JSON.parse(raw) as Array<CustomEventDef & {
+      const parsed = JSON.parse(raw) as Array<Partial<CustomEventDef> & {
         returnsByAsset?: Record<string, Record<number, number>>;
       }>;
-      const customEvents = parsed.map(({ returnsByAsset: _ignored, ...event }) => event);
+      const customEvents = parsed.map(({ returnsByAsset: _ignored, ...event }) => ({
+        name: event.name || 'Custom Event',
+        date: event.date || event.selectedDate || '',
+        source: 'custom' as const,
+        tags: event.tags || [],
+        trigger: event.trigger ?? null,
+        createdAt: event.createdAt || new Date().toISOString(),
+        selectedDate: event.selectedDate || event.date || '',
+        resolvedAnchorDate: event.resolvedAnchorDate || event.date || null,
+        storageScope: 'local' as const,
+      }));
       const events = [...state.events];
       const eventReturns = { ...state.eventReturns };
       const eventTags = { ...state.eventTags };
@@ -328,24 +370,35 @@ export const useDashboard = create<DashboardState>((set) => ({
       const activeEvents = new Set(state.activeEvents);
 
       for (const item of parsed) {
-        if (!events.find((event) => event.name === item.name)) {
-          events.push({ name: item.name, date: item.date });
+        const normalizedItem: CustomEventDef = {
+          name: item.name || 'Custom Event',
+          date: item.date || item.selectedDate || '',
+          source: 'custom',
+          tags: item.tags || [],
+          trigger: item.trigger ?? null,
+          createdAt: item.createdAt || new Date().toISOString(),
+          selectedDate: item.selectedDate || item.date || '',
+          resolvedAnchorDate: item.resolvedAnchorDate || item.date || null,
+          storageScope: 'local',
+        };
+        if (!events.find((event) => event.name === normalizedItem.name)) {
+          events.push({ name: normalizedItem.name, date: normalizedItem.date });
         }
         if (item.returnsByAsset) {
           for (const [label, series] of Object.entries(item.returnsByAsset)) {
             eventReturns[label] = {
               ...(eventReturns[label] || {}),
-              [item.name]: series,
+              [normalizedItem.name]: series,
             };
           }
         }
-        eventTags[item.name] = new Set(item.tags);
-        macroContext[item.name] = {
-          trigger: item.trigger ?? 0,
+        eventTags[normalizedItem.name] = new Set(normalizedItem.tags);
+        macroContext[normalizedItem.name] = {
+          trigger: normalizedItem.trigger ?? 0,
           cpi: 'mid' as const,
           fed: 'hold' as const,
         };
-        activeEvents.add(item.name);
+        activeEvents.add(normalizedItem.name);
       }
 
       events.sort((a, b) => a.date.localeCompare(b.date));

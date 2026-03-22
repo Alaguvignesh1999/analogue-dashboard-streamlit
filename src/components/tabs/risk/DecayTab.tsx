@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Button, SliderControl } from '@/components/ui/ChartCard';
+import { getLiveScoringDay, getLiveScoringReturns } from '@/engine/live';
 import { buildDecayTimeline, eventScoreTimeline, eventRankTimeline, dominantSegments } from '@/engine/decay';
 import { EVENT_COLORS, EVENTS } from '@/config/events';
 import { CHART_THEME } from '@/config/theme';
@@ -17,14 +18,15 @@ export function DecayTab() {
   const [computing, setComputing] = useState(false);
   const [timeline, setTimeline] = useState<ReturnType<typeof buildDecayTimeline> | null>(null);
 
-  const dayN = live.dayN ?? 0;
+  const scoringReturns = getLiveScoringReturns(live);
+  const dayN = getLiveScoringDay(live);
 
   function handleBuild() {
-    if (!live.returns || dayN < 1) return;
+    if (!scoringReturns || dayN < 1) return;
     setComputing(true);
     // Use requestAnimationFrame to let UI update before heavy computation
     requestAnimationFrame(() => {
-      const tl = buildDecayTimeline(eventReturns, live.returns!, dayN, step);
+      const tl = buildDecayTimeline(eventReturns, scoringReturns, dayN, step);
       setTimeline(tl);
       setComputing(false);
     });
@@ -73,7 +75,7 @@ export function DecayTab() {
         controls={
           <div className="flex items-center gap-3">
             <SliderControl label="Step" value={step} onChange={setStep} min={1} max={5} suffix="d" />
-            <Button onClick={handleBuild} disabled={computing || !live.returns || dayN < 1}>
+            <Button onClick={handleBuild} disabled={computing || !scoringReturns || dayN < 1}>
               {computing ? '⟳ Computing...' : '▶ Build Decay Chart'}
             </Button>
           </div>

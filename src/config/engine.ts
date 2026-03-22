@@ -33,6 +33,14 @@ export const SIMILARITY_ASSET_POOL = [
   'EURUSD', 'USDJPY', 'Copper', 'Shipping (BDRY)',
 ];
 
+export const DEFAULT_LIVE_SIM_ASSETS = [
+  'Brent Futures',
+  'VIX',
+  'Gold',
+  'DXY',
+  'S&P 500',
+];
+
 export const DATA_SCHEMA_VERSION = 2;
 
 export const TRIGGER_ZSCORE_SIGMA = 1.5;

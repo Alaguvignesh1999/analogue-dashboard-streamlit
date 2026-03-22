@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, Button } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel, unitLabel } from '@/engine/returns';
+import { getLiveScoringDay, getLiveScoringReturns } from '@/engine/live';
 import { selectEvents } from '@/engine/similarity';
 import { nanMedian, nanMean, nanStd, nanPercentile } from '@/lib/math';
 import { stars, statusFromPctile, fmtReturn } from '@/lib/format';
@@ -138,7 +139,8 @@ export function TradeIdeasTab() {
   const [group, setGroup] = useState('— All Assets —');
 
   const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
-  const dayN = live.dayN ?? 0;
+  const scoringReturns = getLiveScoringReturns(live);
+  const dayN = getLiveScoringDay(live);
 
   const labels = useMemo(() => {
     if (group === '— All Assets —') return allLabels;
@@ -147,8 +149,8 @@ export function TradeIdeasTab() {
   }, [group, allLabels, assetMeta]);
 
   const rows = useMemo(() =>
-    computeTradeRows(labels, eventReturns, assetMeta, selectedEvents, dayN, horizon, live.returns),
-    [labels, eventReturns, assetMeta, selectedEvents, dayN, horizon, live.returns]
+    computeTradeRows(labels, eventReturns, assetMeta, selectedEvents, dayN, horizon, scoringReturns),
+    [labels, eventReturns, assetMeta, selectedEvents, dayN, horizon, scoringReturns]
   );
 
   const groupOptions = useMemo(() => [

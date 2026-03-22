@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, SliderControl } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel, unitLabel } from '@/engine/returns';
+import { getLiveScoringDay } from '@/engine/live';
 import { selectEvents } from '@/engine/similarity';
 import { nanMedian, nanMean, nanStd, corrcoef } from '@/lib/math';
 import { CUSTOM_GROUPS } from '@/config/assets';
@@ -33,7 +34,7 @@ export function ScreenerTab() {
   const [minRR, setMinRR] = useState(0.80);
 
   const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
-  const dayN = live.dayN ?? 0;
+  const dayN = getLiveScoringDay(live);
   const fo = dayN + horizon;
 
   const labels = useMemo(() => {

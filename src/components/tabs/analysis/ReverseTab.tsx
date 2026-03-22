@@ -2,9 +2,9 @@
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
-import { poiRet } from '@/engine/returns';
-import { SIMILARITY_ASSET_POOL } from '@/config/engine';
-import { cosine, nanMean } from '@/lib/math';
+import { runAnalogueMatch } from '@/engine/similarity';
+import { getLiveScoringDay, getLiveScoringReturns } from '@/engine/live';
+import { nanMean } from '@/lib/math';
 
 interface ReverseMatch {
   rank: number;
@@ -14,79 +14,61 @@ interface ReverseMatch {
 }
 
 export function ReverseTab() {
-  const { eventReturns, live, events } = useDashboard();
+  const { eventReturns, eventTags, macroContext, triggerZScores, similarityAssets, live, events } = useDashboard();
+  const scoringReturns = getLiveScoringReturns(live);
+  const scoringDayN = getLiveScoringDay(live);
 
   const [topN, setTopN] = useState<number>(5);
 
-  const liveVector = useMemo(() => {
-    if (!live?.returns) return [];
-    const dn = live.dayN ?? 0;
-    const livePool = SIMILARITY_ASSET_POOL.filter(
-      (a) => live.returns?.[a] && Object.keys(live.returns[a]).length > 0
-    );
-    return livePool.map((a) => live.returns![a][dn] ?? 0);
-  }, [live?.returns, live?.dayN]);
-
-  const livePool = useMemo(() => {
-    if (!live?.returns) return [];
-    return SIMILARITY_ASSET_POOL.filter(
-      (a) => live.returns?.[a] && Object.keys(live.returns[a]).length > 0
-    );
-  }, [live?.returns]);
-
   const { matches, stats } = useMemo(() => {
-    if (liveVector.length === 0 || Object.keys(eventReturns).length === 0) {
+    if (!scoringReturns || Object.keys(eventReturns).length === 0) {
       return { matches: [], stats: { topScore: 0, avgScore: 0, topEvent: '' } };
     }
 
-    const dn = live?.dayN ?? 0;
-    const results: ReverseMatch[] = [];
+    const scores = runAnalogueMatch(
+      eventReturns,
+      scoringReturns,
+      live.tags,
+      live.triggerZScore,
+      live.cpi,
+      live.fed,
+      scoringDayN,
+      triggerZScores,
+      {
+        weights: { quant: 1, tag: 0, macro: 0 },
+        simAssets: similarityAssets,
+        events,
+        eventTags,
+        macroContext,
+      },
+    );
 
-    for (const event of events) {
-      const histVec = livePool.map((a) =>
-        poiRet(eventReturns, a, event.name, dn)
-      );
+    const results: ReverseMatch[] = scores.map((score) => ({
+      rank: 0,
+      eventName: score.event,
+      cosineSimilarity: score.quant,
+      sharedAssets: score.sharedAssetCount,
+    }));
 
-      const validIndices = histVec
-        .map((v, i) => (!isNaN(v) ? i : -1))
-        .filter((i) => i >= 0);
-
-      if (validIndices.length === 0) continue;
-
-      const liveVecFiltered = validIndices.map((i) => liveVector[i]);
-      const histVecFiltered = validIndices.map((i) => histVec[i]);
-
-      const similarity = cosine(liveVecFiltered, histVecFiltered);
-      if (isNaN(similarity)) continue;
-
-      results.push({
-        rank: 0,
-        eventName: event.name,
-        cosineSimilarity: (similarity + 1) / 2,
-        sharedAssets: validIndices.length,
-      });
-    }
-
-    results.sort((a, b) => b.cosineSimilarity - a.cosineSimilarity);
     const topResults = results.slice(0, topN).map((m, idx) => ({ ...m, rank: idx + 1 }));
-    const scores = topResults.map(m => m.cosineSimilarity);
+    const values = topResults.map(m => m.cosineSimilarity);
 
     return {
       matches: topResults,
       stats: {
         topScore: topResults.length > 0 ? topResults[0].cosineSimilarity : 0,
-        avgScore: topResults.length > 0 ? nanMean(scores) : 0,
+        avgScore: topResults.length > 0 ? nanMean(values) : 0,
         topEvent: topResults.length > 0 ? topResults[0].eventName : '',
       },
     };
-  }, [liveVector, livePool, eventReturns, events, topN, live?.dayN]);
+  }, [eventReturns, eventTags, events, live.cpi, live.fed, live.tags, live.triggerZScore, macroContext, scoringDayN, scoringReturns, similarityAssets, topN, triggerZScores]);
 
   const topNOptions = Array.from({ length: 11 }, (_, i) => {
     const val = 3 + i * 1;
     return { label: val.toString(), value: val.toString() };
   });
 
-  if (!live || liveVector.length === 0) {
+  if (!live || !scoringReturns) {
     return (
       <ChartCard
         title="Reverse Analogue Lookup"
@@ -132,7 +114,7 @@ export function ReverseTab() {
           />
           <StatBox
             label="Assets Shared"
-            value={livePool.length}
+            value={similarityAssets.length}
             sub="in comparison pool"
             color="#71717a"
           />
@@ -175,7 +157,7 @@ export function ReverseTab() {
         )}
 
         <div className="text-2xs text-text-dim border-t border-border/40 pt-3 space-y-1">
-          <p>Cosine similarity of current return pattern (day {live?.dayN ?? 0}) against historical event returns.</p>
+          <p>Cosine similarity of current return pattern (trading day {scoringDayN}) against historical event returns.</p>
           <p className="text-text-dim/70">Asset count in parentheses indicates valid comparisons per event.</p>
         </div>
       </div>

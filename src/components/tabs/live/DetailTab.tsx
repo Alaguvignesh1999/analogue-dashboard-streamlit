@@ -3,6 +3,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, StatBox, Badge } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel, unitLabel } from '@/engine/returns';
+import { getLiveScoringDay, getLiveScoringReturns } from '@/engine/live';
 import { selectEvents } from '@/engine/similarity';
 import { nanMean, nanMedian, nanStd, nanPercentile, nanMin, nanMax } from '@/lib/math';
 import { fmtReturn, stars, entrySignal } from '@/lib/format';
@@ -32,7 +33,8 @@ export function DetailTab() {
   }, [classAssets, selectedAsset]);
 
   const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
-  const dayN = live.dayN ?? 0;
+  const scoringReturns = getLiveScoringReturns(live);
+  const dayN = getLiveScoringDay(live);
   const meta = assetMeta[selectedAsset];
   const isRates = meta?.is_rates_bp || false;
   const unit = unitLabel(meta);
@@ -57,11 +59,14 @@ export function DetailTab() {
 
     // Live deviation
     let liveRet = NaN;
-    if (live.returns?.[selectedAsset]) {
-      const lrDn = live.returns[selectedAsset][dayN];
-      const lrFo = live.returns[selectedAsset][fo];
+    if (scoringReturns?.[selectedAsset]) {
+      const lrDn = scoringReturns[selectedAsset][dayN];
+      const lrFo = scoringReturns[selectedAsset][fo];
       if (lrDn !== undefined && lrFo !== undefined) liveRet = lrFo - lrDn;
-      else if (lrDn !== undefined) liveRet = (live.returns[selectedAsset][live.dayN ?? 0] ?? 0) - lrDn;
+      else if (lrDn !== undefined) {
+        const latestOffset = Math.max(...Object.keys(scoringReturns[selectedAsset]).map(Number));
+        liveRet = (scoringReturns[selectedAsset][latestOffset] ?? 0) - lrDn;
+      }
     }
 
     return {
@@ -69,7 +74,7 @@ export function DetailTab() {
       barData: vals.map(v => ({ name: v.event.length > 14 ? v.event.slice(0, 14) + '…' : v.event, value: v.fwd })),
       stats: { med, mean, std, iqr, hitRate, sharpe, worst: nanMin(fwds), best: nanMax(fwds), rating: stars(iqr, med), n: fwds.length, liveRet },
     };
-  }, [selectedEvents, eventReturns, selectedAsset, dayN, horizon, live]);
+  }, [dayN, eventReturns, horizon, scoringReturns, selectedAsset, selectedEvents]);
 
   const signal = entrySignal(isNaN(stats.liveRet) ? null : (stats.liveRet / (stats.iqr + 1e-9)) * 50 + 50);
 

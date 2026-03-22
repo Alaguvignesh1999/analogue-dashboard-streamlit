@@ -4,6 +4,7 @@ import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Button, Badge } from '@/components/ui/ChartCard';
 import { selectEvents } from '@/engine/similarity';
 import { poiRet, displayLabel, unitLabel } from '@/engine/returns';
+import { getLiveScoringDay } from '@/engine/live';
 import { SIMILARITY_ASSET_POOL } from '@/config/engine';
 import { nanMedian, nanMean, nanStd, nanMin, nanMax, nanPercentile } from '@/lib/math';
 import { fmtReturn, stars, entrySignal } from '@/lib/format';
@@ -14,7 +15,7 @@ export function MemoTab() {
   const [copied, setCopied] = useState(false);
 
   const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
-  const dayN = live.dayN ?? 0;
+  const dayN = getLiveScoringDay(live);
 
   const generateMemo = useCallback(() => {
     const lines: string[] = [];

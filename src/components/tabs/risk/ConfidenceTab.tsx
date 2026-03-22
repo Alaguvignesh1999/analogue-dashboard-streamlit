@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, StatBox, Badge } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel, unitLabel } from '@/engine/returns';
+import { getLiveScoringDay } from '@/engine/live';
 import { selectEvents } from '@/engine/similarity';
 import { KELLY_FRACTION, RISK_BUDGET_USD } from '@/config/engine';
 import { CUSTOM_GROUPS } from '@/config/assets';
@@ -35,7 +36,7 @@ export function ConfidenceTab() {
   const [group, setGroup] = useState(Object.keys(CUSTOM_GROUPS)[0] || 'Equities');
 
   const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
-  const dayN = live.dayN ?? 0;
+  const dayN = getLiveScoringDay(live);
 
   const labels = useMemo(() => {
     return (CUSTOM_GROUPS[group] || []);

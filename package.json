@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:live-parity": "python scripts/live_parity_check.py",
+    "test:snapshot-contract": "python scripts/live_snapshot_check.py"
   },
   "dependencies": {
     "lightweight-charts": "^4.2.0",

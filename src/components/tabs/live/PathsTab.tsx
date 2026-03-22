@@ -3,6 +3,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, StatBox, Badge } from '@/components/ui/ChartCard';
 import { displayLabel, unitLabel, poiRet } from '@/engine/returns';
+import { getLiveScoringDay } from '@/engine/live';
 import { selectEvents, compositeReturn } from '@/engine/similarity';
 import { POIS, POST_WINDOW_TD } from '@/config/engine';
 import { nanMedian } from '@/lib/math';
@@ -42,7 +43,7 @@ export function PathsTab() {
   }, [classAssets, selectedAsset]);
 
   const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
-  const dayN = live.dayN ?? 0;
+  const dayN = getLiveScoringDay(live);
   const meta = assetMeta[selectedAsset];
   const isRates = meta?.is_rates_bp || false;
   const unit = unitLabel(meta);

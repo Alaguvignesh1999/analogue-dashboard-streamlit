@@ -18,6 +18,7 @@ warnings.filterwarnings("ignore")
 
 OUT_DIR = Path("public/data")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+LIVE_DEFAULTS_PATH = Path("config/live_defaults.json")
 
 FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 FRED_TIMEOUT = 60
@@ -359,6 +360,189 @@ def build_availability(prices_df):
     return availability
 
 
+def load_live_defaults():
+    if LIVE_DEFAULTS_PATH.exists():
+        with open(LIVE_DEFAULTS_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {
+        "name": "Iran War 2026",
+        "day0": "2026-02-28",
+        "tags": ["energy_shock", "military_conflict"],
+        "cpi": "mid",
+        "fed": "hold",
+    }
+
+
+def _compute_live_asset_series(label, requested_day0, prices_df, meta):
+    if label not in prices_df.columns:
+        return None
+    col = prices_df[label].dropna()
+    if col.empty:
+        return None
+
+    target = pd.Timestamp(requested_day0)
+    eligible = col.index[col.index <= target]
+    if len(eligible) == 0:
+        return None
+
+    d0 = eligible[-1]
+    idx0 = col.index.get_loc(d0)
+    denom = col.iloc[idx0 - 1] if idx0 > 0 else col.iloc[idx0]
+    if denom == 0 or np.isnan(denom):
+        return None
+
+    raw_returns = {}
+    raw_levels = {}
+    scoring_returns = {}
+    scoring_levels = {}
+    observed_dates = []
+
+    for i in range(idx0, len(col)):
+        dt = col.index[i]
+        val = float(col.iloc[i])
+        if np.isnan(val):
+            continue
+        cal_off = int((dt - d0).days)
+        td_off = i - idx0
+        observed_dates.append(dt.strftime("%Y-%m-%d"))
+        raw_levels[cal_off] = round(val, 6)
+        scoring_levels[td_off] = round(val, 6)
+        if meta.get("is_rates_bp"):
+            move = (val - float(denom)) * 100
+        else:
+            move = (val / float(denom) - 1) * 100
+            if not meta.get("invert", True):
+                move = -move
+        raw_returns[cal_off] = round(float(move), 4)
+        scoring_returns[td_off] = round(float(move), 4)
+
+    return {
+        "raw_returns": raw_returns,
+        "raw_levels": raw_levels,
+        "scoring_returns": scoring_returns,
+        "scoring_levels": scoring_levels,
+        "observed_dates": observed_dates,
+        "day0_price": round(float(col.iloc[idx0]), 6),
+        "actual_day0": d0.strftime("%Y-%m-%d"),
+        "as_of": observed_dates[-1] if observed_dates else None,
+    }
+
+
+def _fill_calendar_series(raw_returns, raw_levels, day0_price, target_offset, max_carry_days=3):
+    offsets = sorted(raw_returns.keys())
+    if not offsets or target_offset < 0:
+        return {}, {}
+
+    last_observed_offset = offsets[-1]
+    fill_limit = min(target_offset, last_observed_offset + max_carry_days)
+    out_returns, out_levels = {}, {}
+    last_return = 0.0
+    last_level = day0_price
+
+    for offset in range(fill_limit + 1):
+        if offset in raw_returns:
+            last_return = raw_returns[offset]
+        if offset in raw_levels:
+            last_level = raw_levels[offset]
+        out_returns[offset] = round(float(last_return), 4)
+        out_levels[offset] = round(float(last_level), 6)
+    return out_returns, out_levels
+
+
+def build_live_snapshot(prices_df, meta, all_labels, live_defaults):
+    requested_day0 = live_defaults["day0"]
+    observed = {}
+    asset_status = {}
+    trigger_price = None
+    canonical_dates = []
+    actual_day0 = None
+    as_of_date = None
+
+    for label in all_labels:
+        series = _compute_live_asset_series(label, requested_day0, prices_df, meta[label])
+        if not series or not series["raw_returns"]:
+            asset_status[label] = {
+                "status": "missing",
+                "source": "generated-history",
+                "asOfDate": None,
+                "warning": f"No cached history available on or before {requested_day0}",
+            }
+            continue
+        observed[label] = series
+        asset_status[label] = {
+            "status": "ok",
+            "source": "generated-history",
+            "asOfDate": series["as_of"],
+        }
+        if label == TRIGGER_ASSET:
+            trigger_price = series["day0_price"]
+            canonical_dates = series["observed_dates"]
+            actual_day0 = series["actual_day0"]
+            as_of_date = series["as_of"]
+        elif len(series["observed_dates"]) > len(canonical_dates):
+            canonical_dates = series["observed_dates"]
+            actual_day0 = actual_day0 or series["actual_day0"]
+            as_of_date = series["as_of"] or as_of_date
+
+    actual_day0 = actual_day0 or requested_day0
+    as_of_date = as_of_date or (prices_df.index[-1].strftime("%Y-%m-%d") if len(prices_df.index) else requested_day0)
+    day_n = max(0, (pd.Timestamp(as_of_date) - pd.Timestamp(actual_day0)).days)
+    trading_day_n = max(0, len(canonical_dates) - 1)
+
+    returns = {}
+    levels = {}
+    scoring_returns = {}
+    scoring_levels = {}
+    for label, series in observed.items():
+        filled_returns, filled_levels = _fill_calendar_series(
+            series["raw_returns"], series["raw_levels"], series["day0_price"], day_n
+        )
+        if not filled_returns:
+            continue
+        returns[label] = {str(k): v for k, v in filled_returns.items()}
+        levels[label] = {str(k): v for k, v in filled_levels.items()}
+        scoring_returns[label] = {str(k): v for k, v in series["scoring_returns"].items()}
+        scoring_levels[label] = {str(k): v for k, v in series["scoring_levels"].items()}
+
+    trigger_zscore = None
+    if trigger_price is not None:
+        historical_triggers = [4, 17, 25, 11, 22, 35, 37, 85, 104, 53, 54, 91, 73]
+        mean = sum(historical_triggers) / len(historical_triggers)
+        variance = sum((value - mean) ** 2 for value in historical_triggers) / len(historical_triggers)
+        std = variance ** 0.5
+        trigger_zscore = (trigger_price - mean) / std if std > 0 else 0.0
+
+    return {
+        "name": live_defaults["name"],
+        "snapshotDate": prices_df.index[-1].strftime("%Y-%m-%d") if len(prices_df.index) else requested_day0,
+        "requestedDay0": requested_day0,
+        "actualDay0": actual_day0,
+        "triggerDate": actual_day0,
+        "asOfDate": as_of_date,
+        "dayN": day_n,
+        "tradingDayN": trading_day_n,
+        "returns": returns,
+        "levels": levels,
+        "scoringReturns": scoring_returns,
+        "scoringLevels": scoring_levels,
+        "assetStatus": asset_status,
+        "warnings": [],
+        "provenance": {
+            "mode": "shared",
+            "source": "shared-snapshot",
+            "builtAt": datetime.utcnow().isoformat() + "Z",
+            "schemaVersion": 2,
+        },
+        "businessDates": canonical_dates,
+        "triggerPrice": round(float(trigger_price), 4) if trigger_price is not None else None,
+        "triggerZScore": round(float(trigger_zscore), 4) if trigger_zscore is not None else None,
+        "triggerPctile": round(float(trigger_zscore), 4) if trigger_zscore is not None else None,
+        "tagSet": live_defaults.get("tags", []),
+        "cpi": live_defaults.get("cpi", "mid"),
+        "fed": live_defaults.get("fed", "hold"),
+    }
+
+
 # ── MAIN ──────────────────────────────────────────────────────
 
 def main():
@@ -543,7 +727,12 @@ def main():
     dh_bytes = json.dumps(daily_history, separators=(",", ":")).encode()
     with gzip.open(OUT_DIR / "daily_history.json.gz", "wb") as f:
         f.write(dh_bytes)
-    
+
+    live_defaults = load_live_defaults()
+    live_snapshot = build_live_snapshot(prices[all_labels], meta, all_labels, live_defaults)
+    with open(OUT_DIR / "live_snapshot.json", "w") as f:
+        json.dump(live_snapshot, f, separators=(",", ":"))
+
     # last_updated.json
     with open(OUT_DIR / "last_updated.json", "w") as f:
         json.dump({
@@ -555,6 +744,8 @@ def main():
             "schema_version": 2,
             "pipeline_mode": "generated",
             "as_of": prices.index[-1].strftime("%Y-%m-%d") if len(prices.index) else None,
+            "live_snapshot_date": live_snapshot["snapshotDate"],
+            "live_snapshot_day0": live_snapshot["requestedDay0"],
         }, f, indent=2)
     
     print("\n✅ All data files written to public/data/")
