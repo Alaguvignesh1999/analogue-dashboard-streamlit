@@ -1,98 +1,131 @@
-# Analogue Engine - Cross-Asset Event Dashboard
+# Analogue Dashboard
 
-A production-grade web app for multi-event, multi-asset historical analogue analysis. Built from a 69-cell Jupyter notebook powering geopolitical and macro shock analysis across 120+ assets and 13 historical events.
+Analogue Dashboard is a Next.js web application for cross-asset historical analogue analysis, live-event matching, and scenario/risk workflows. It is the web productionization of the original notebook workflow, with generated historical artifacts, a shared live snapshot, and browser-local custom events.
 
-## Quick Start
+## Current State
 
-### 1. Clone & Install
+- Framework: Next.js 15 / React 19
+- Historical dataset: generated artifacts in `public/data/`
+- Live dataset: shared daily snapshot plus private scenario mode
+- Asset coverage: 130+ assets across equities, rates, FX, credit, commodities, volatility, and crypto
+- Base event set: 13 canonical historical events
+- Custom events: local-only, browser-scoped, constrained to loaded historical coverage
+
+## Core Product Rules
+
+- Historical analysis reads only generated artifacts committed under `public/data/`.
+- Live scoring uses the latest observed market date on or before the requested Day 0. No lookahead is allowed.
+- Shared live snapshot is the default team view.
+- Private live scenarios reuse cached/generated data first and do not overwrite shared snapshot state.
+- Custom events never trigger historical backfills. They are computed locally from the already loaded daily-history artifact.
+
+## Main Repository Layout
+
+- `src/app/`: Next.js app shell and API routes
+- `src/components/`: dashboard UI and tab implementations
+- `src/engine/`: shared analytics, scoring, decay, live helpers, and custom-event logic
+- `src/store/`: shared Zustand dashboard state
+- `src/hooks/`: data loading and initialization
+- `public/data/`: generated historical and live snapshot artifacts
+- `scripts/`: data pipeline and regression/integrity checks
+- `config/`: live defaults and project configuration
+- `.github/workflows/`: scheduled refresh automation
+- `docs/`: architecture and operations notes
+
+## Data Artifacts
+
+The frontend expects these generated artifacts:
+
+- `public/data/meta.json`
+- `public/data/event_returns.json.gz`
+- `public/data/daily_history.json.gz`
+- `public/data/trigger_zscores.json`
+- `public/data/last_updated.json`
+- `public/data/live_snapshot.json`
+
+The app surfaces provenance from these artifacts so users can tell whether they are reading generated historical data, a shared live snapshot, a private scenario, or demo mode.
+
+## Local Development
+
+### 1. Install dependencies
+
 ```bash
-git clone <your-repo-url>
-cd analogue-dashboard
 npm install
-```
-
-### 2. Configure Secrets
-```bash
-cp .env.example .env
-```
-
-Add your FRED key to `.env`:
-
-```bash
-FRED_API_KEY=your_key_here
-```
-
-Never commit real secrets to the repository.
-
-### 3. Run Data Pipeline (first time)
-```bash
 pip install -r scripts/requirements.txt
+```
+
+### 2. Configure secrets
+
+Create `.env.local` from `.env.example` and set:
+
+```bash
+FRED_API_KEY=your_real_key_here
+```
+
+Do not commit live secrets.
+
+### 3. Generate or refresh data locally
+
+```bash
 python scripts/pull_data.py
 ```
 
-This creates compressed JSON files in `public/data/` that the app reads on load.
+### 4. Start the app
 
-### 4. Start Dev Server
 ```bash
 npm run dev
-# -> http://localhost:3000
 ```
 
-### 5. Deploy to Vercel
+## Validation Commands
+
+Run these before preview or production release:
+
 ```bash
-# Push to GitHub, then:
-# 1. Connect repo to Vercel
-# 2. Add FRED_API_KEY as a Vercel environment variable
-# 3. Deploy
+npm run build
+npm run test:snapshot-contract
+npm run test:live-parity
+npm run test:data-integrity
+npm run test:gate-regression
 ```
 
-## Data Pipeline
+## Deployment Model
 
-The data pipeline runs via **GitHub Actions** (`.github/workflows/data-refresh.yml`):
-- **Daily** at 9:30 PM ET (post-market close)
-- **Manual** trigger via `workflow_dispatch`
+### Historical refresh
 
-It pulls 120+ tickers from yfinance + FRED, computes event returns for all 13 events, and commits compressed JSON to `public/data/`.
+GitHub Actions runs `.github/workflows/data-refresh.yml` on schedule and by manual dispatch. It regenerates `public/data/*` and commits those artifacts back to the repo.
 
-### Required Secrets
-- `FRED_API_KEY` in GitHub Actions Secrets for the scheduled data refresh workflow
-- `FRED_API_KEY` in Vercel Environment Variables if you want the live server API routes to query FRED at runtime
+### Preview deploys
 
-## Architecture
+Use Vercel preview deployments for ongoing work:
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 14 (App Router) |
-| Styling | Tailwind CSS |
-| Charts | Recharts |
-| State | Zustand |
-| Data Pipeline | Python + GitHub Actions |
-| Deployment | Vercel |
-| Heavy Compute | Client-side (Web Workers planned) |
+```bash
+vercel deploy -y
+```
 
-## Tab Groups (26 total)
+### Production deploys
 
-### Historical (9 tabs)
-Events - Overlay - Cross-Asset - Heatmap - Scatter - VIX - Box & Whisker - Summary - Step-In
+Only deploy to production after:
 
-### Live Engine (5 tabs)
-L1 Config - L2 Analogues - L3 Paths - L4 Trade Ideas - L5 Detail
+1. docs and code are committed
+2. generated data is refreshed
+3. validation commands pass
+4. the release candidate is reviewed in preview
 
-### Analysis (5 tabs)
-Screener - Lead-Lag - Reverse Lookup - Pre-Positioning - Sector Rotation
+Then deploy:
 
-### Risk (5 tabs)
-Portfolio Stress - Signal Decay - Confidence/Kelly - OOS Validation - Entry/Exit Gate
+```bash
+vercel deploy --prod -y
+```
 
-### Tools (2 tabs)
-Correlation (5 sub-tabs) - Trade Memo
+## Documentation
 
-## V1 Working Tabs
-- Overlay (return path overlay)
-- Heatmap (POI x event matrix)
-- L1 Config (live event setup)
-- L4 Trade Ideas (ranked table with Sharpe/Sortino/hit rate)
-- L6 Screener (conviction/bimodal/redundancy)
-- L12 Signal Decay (rank evolution chart)
-- Entry/Exit Gate (traffic light table)
-- Remaining 19 tabs (V2)
+- [Architecture](C:/Users/vigne/Downloads/analogue-dashboard-clean/docs/ARCHITECTURE.md)
+- [Operations](C:/Users/vigne/Downloads/analogue-dashboard-clean/docs/OPERATIONS.md)
+- [Changelog](C:/Users/vigne/Downloads/analogue-dashboard-clean/CHANGELOG.md)
+
+## Important Operational Notes
+
+- Production and GitHub `main` should stay aligned. Do not leave production running from an unmerged branch indefinitely.
+- Browser-local custom events are intentionally private and are not written back to GitHub or the shared live snapshot.
+- Some asset classes have mixed calendars. The live engine resolves on-or-before values and surfaces warnings when a requested asset has no valid data at the requested anchor.
+- `last_updated.json` is the first place to verify whether the current historical bundle is generated, current, and free of FRED failures.
