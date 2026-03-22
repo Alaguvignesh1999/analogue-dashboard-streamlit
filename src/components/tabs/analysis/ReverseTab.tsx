@@ -2,9 +2,9 @@
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
-import { poiRet } from '@/engine/returns';
-import { SIMILARITY_ASSET_POOL } from '@/config/engine';
-import { cosine, nanMean } from '@/lib/math';
+import { runAnalogueMatch } from '@/engine/similarity';
+import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveScoringReturns } from '@/engine/live';
+import { nanMean } from '@/lib/math';
 
 interface ReverseMatch {
   rank: number;
@@ -14,83 +14,70 @@ interface ReverseMatch {
 }
 
 export function ReverseTab() {
-  const { eventReturns, live, events } = useDashboard();
+  const { eventReturns, eventTags, macroContext, triggerZScores, similarityAssets, live, events, activeEvents } = useDashboard();
+  const scoringReturns = getLiveScoringReturns(live);
+  const scoringDayN = scoringReturns ? getEffectiveScoringDay(live, similarityAssets) : 0;
+  const scoringDate = scoringReturns ? getEffectiveScoringDate(live, similarityAssets) : null;
+  const activeEventDefs = useMemo(
+    () => events.filter((event) => activeEvents.has(event.name)),
+    [activeEvents, events],
+  );
 
   const [topN, setTopN] = useState<number>(5);
 
-  const liveVector = useMemo(() => {
-    if (!live?.returns) return [];
-    const dn = live.dayN ?? 0;
-    const livePool = SIMILARITY_ASSET_POOL.filter(
-      (a) => live.returns?.[a] && Object.keys(live.returns[a]).length > 0
-    );
-    return livePool.map((a) => live.returns![a][dn] ?? 0);
-  }, [live?.returns, live?.dayN]);
-
-  const livePool = useMemo(() => {
-    if (!live?.returns) return [];
-    return SIMILARITY_ASSET_POOL.filter(
-      (a) => live.returns?.[a] && Object.keys(live.returns[a]).length > 0
-    );
-  }, [live?.returns]);
-
   const { matches, stats } = useMemo(() => {
-    if (liveVector.length === 0 || Object.keys(eventReturns).length === 0) {
+    if (!scoringReturns || Object.keys(eventReturns).length === 0) {
       return { matches: [], stats: { topScore: 0, avgScore: 0, topEvent: '' } };
     }
 
-    const dn = live?.dayN ?? 0;
-    const results: ReverseMatch[] = [];
+    const scores = runAnalogueMatch(
+      eventReturns,
+      scoringReturns,
+      live.tags,
+      live.triggerZScore,
+      live.cpi,
+      live.fed,
+        scoringDayN,
+        triggerZScores,
+        {
+          weights: { quant: 1, tag: 0, macro: 0 },
+          simAssets: similarityAssets,
+          events: activeEventDefs,
+          eventTags,
+          macroContext,
+        },
+    );
 
-    for (const event of events) {
-      const histVec = livePool.map((a) =>
-        poiRet(eventReturns, a, event.name, dn)
-      );
+    const results: ReverseMatch[] = scores.map((score) => ({
+      rank: 0,
+      eventName: score.event,
+      cosineSimilarity: score.quant,
+      sharedAssets: score.sharedAssetCount,
+    }));
 
-      const validIndices = histVec
-        .map((v, i) => (!isNaN(v) ? i : -1))
-        .filter((i) => i >= 0);
-
-      if (validIndices.length === 0) continue;
-
-      const liveVecFiltered = validIndices.map((i) => liveVector[i]);
-      const histVecFiltered = validIndices.map((i) => histVec[i]);
-
-      const similarity = cosine(liveVecFiltered, histVecFiltered);
-      if (isNaN(similarity)) continue;
-
-      results.push({
-        rank: 0,
-        eventName: event.name,
-        cosineSimilarity: (similarity + 1) / 2,
-        sharedAssets: validIndices.length,
-      });
-    }
-
-    results.sort((a, b) => b.cosineSimilarity - a.cosineSimilarity);
-    const topResults = results.slice(0, topN).map((m, idx) => ({ ...m, rank: idx + 1 }));
-    const scores = topResults.map(m => m.cosineSimilarity);
+    const topResults = results.slice(0, topN).map((match, index) => ({ ...match, rank: index + 1 }));
+    const values = topResults.map((match) => match.cosineSimilarity);
 
     return {
       matches: topResults,
       stats: {
         topScore: topResults.length > 0 ? topResults[0].cosineSimilarity : 0,
-        avgScore: topResults.length > 0 ? nanMean(scores) : 0,
+        avgScore: topResults.length > 0 ? nanMean(values) : 0,
         topEvent: topResults.length > 0 ? topResults[0].eventName : '',
       },
     };
-  }, [liveVector, livePool, eventReturns, events, topN, live?.dayN]);
+  }, [activeEventDefs, eventReturns, eventTags, live.cpi, live.fed, live.tags, live.triggerZScore, macroContext, scoringDayN, scoringReturns, similarityAssets, topN, triggerZScores]);
 
-  const topNOptions = Array.from({ length: 11 }, (_, i) => {
-    const val = 3 + i * 1;
-    return { label: val.toString(), value: val.toString() };
+  const topNOptions = Array.from({ length: 11 }, (_, index) => {
+    const value = 3 + index;
+    return { label: value.toString(), value: value.toString() };
   });
 
-  if (!live || liveVector.length === 0) {
+  if (!live || !scoringReturns) {
     return (
       <ChartCard
         title="Reverse Analogue Lookup"
-        subtitle="Find historical events matching current return pattern via cosine similarity"
+        subtitle="Find historical events matching the current return pattern via cosine similarity"
       >
         <div className="flex items-center justify-center h-24 text-xs text-text-dim">
           No live data available. Load current market data to find analogues.
@@ -102,26 +89,30 @@ export function ReverseTab() {
   return (
     <ChartCard
       title="Reverse Analogue Lookup"
-      subtitle="Find historical events matching current return pattern via cosine similarity"
+      subtitle="Find historical events matching the current return pattern via cosine similarity"
     >
       <div className="p-4 space-y-4 animate-fade-in">
         <div className="flex items-end gap-3">
           <Select
             label="Top N"
             value={topN.toString()}
-            onChange={(val) => setTopN(parseInt(val))}
+            onChange={(value) => setTopN(parseInt(value, 10))}
             options={topNOptions}
           />
           <div className="text-2xs text-text-dim">
-            Matching {Object.keys(eventReturns).length} historical events
+            Matching {activeEventDefs.length} active historical events
           </div>
+        </div>
+
+        <div className="text-2xs text-text-dim border border-border/40 bg-bg-cell/20 px-3 py-2">
+          Reverse lookup reuses the same quant-only path engine as analogue matching. Each score is based on the live return vector at the effective scoring day, using only assets with valid overlap for that specific event.
         </div>
 
         <div className="grid grid-cols-3 gap-2">
           <StatBox
             label="Top Match"
             value={(stats.topScore * 100).toFixed(1)}
-            sub={`${stats.topEvent ? stats.topEvent.substring(0, 15) : '—'}`}
+            sub={`${stats.topEvent ? stats.topEvent.substring(0, 15) : '--'}`}
             color="#00d4aa"
           />
           <StatBox
@@ -132,7 +123,7 @@ export function ReverseTab() {
           />
           <StatBox
             label="Assets Shared"
-            value={livePool.length}
+            value={similarityAssets.length}
             sub="in comparison pool"
             color="#71717a"
           />
@@ -140,12 +131,12 @@ export function ReverseTab() {
 
         {matches.length === 0 ? (
           <div className="flex items-center justify-center h-20 border border-border/40 rounded-sm bg-bg-cell/30 text-xs text-text-dim">
-            No matches found with available data
+            No matches found with available data.
           </div>
         ) : (
           <div className="space-y-2">
             {matches.map((match) => {
-              const pct = (match.cosineSimilarity * 100);
+              const pct = match.cosineSimilarity * 100;
               const barWidth = Math.max(pct, 3);
               return (
                 <div key={match.eventName} className="space-y-1">
@@ -175,8 +166,8 @@ export function ReverseTab() {
         )}
 
         <div className="text-2xs text-text-dim border-t border-border/40 pt-3 space-y-1">
-          <p>Cosine similarity of current return pattern (day {live?.dayN ?? 0}) against historical event returns.</p>
-          <p className="text-text-dim/70">Asset count in parentheses indicates valid comparisons per event.</p>
+          <p>Cosine similarity of the current return pattern at effective scoring day D+{scoringDayN}{scoringDate ? ` (${scoringDate})` : ''} against historical event returns.</p>
+          <p className="text-text-dim/70">Asset count in parentheses indicates how many assets had valid overlap for that event.</p>
         </div>
       </div>
     </ChartCard>

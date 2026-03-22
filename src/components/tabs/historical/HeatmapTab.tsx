@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select } from '@/components/ui/ChartCard';
-import { poiRet, displayLabel, unitLabel } from '@/engine/returns';
+import { anchorSeriesValue, displayLabel, unitLabel, eventDateMap, isAssetAvailableForEvent } from '@/engine/returns';
 import { POIS } from '@/config/engine';
 import { CHART_THEME } from '@/config/theme';
 
@@ -12,88 +12,101 @@ function heatColor(value: number, maxAbs: number, isRates: boolean): string {
   const intensity = Math.min(Math.abs(value) / (maxAbs + 1e-9), 1);
   const alpha = 0.15 + intensity * 0.55;
   const isGood = isRates ? value < 0 : value > 0;
-  if (isGood) return `rgba(34,197,94,${alpha.toFixed(2)})`;
-  return `rgba(239,68,68,${alpha.toFixed(2)})`;
+  return isGood ? `rgba(34,197,94,${alpha.toFixed(2)})` : `rgba(239,68,68,${alpha.toFixed(2)})`;
 }
 
 export function HeatmapTab() {
-  const { eventReturns, assetMeta, allClasses, events, activeEvents, live } = useDashboard();
-  
+  const { eventReturns, assetMeta, allClasses, events, activeEvents, live, availability } = useDashboard();
+
   const [selectedClass, setSelectedClass] = useState('Oil & Energy');
   const [selectedAsset, setSelectedAsset] = useState('Brent Futures');
 
-  const classAssets = useMemo(() => {
-    return Object.entries(assetMeta)
-      .filter(([, m]) => m.class === selectedClass)
-      .map(([label]) => label);
-  }, [assetMeta, selectedClass]);
+  const classAssets = useMemo(
+    () => Object.entries(assetMeta).filter(([, meta]) => meta.class === selectedClass).map(([label]) => label),
+    [assetMeta, selectedClass]
+  );
 
-  // Auto-select first asset when class changes
   useEffect(() => {
     if (classAssets.length > 0 && !classAssets.includes(selectedAsset)) {
       setSelectedAsset(classAssets[0]);
     }
   }, [classAssets, selectedAsset]);
 
-  const activeEventNames = useMemo(() => 
-    events.filter(e => activeEvents.has(e.name)).map(e => e.name),
-    [events, activeEvents]
+  const activeEventNames = useMemo(
+    () => events.filter((event) => activeEvents.has(event.name)).map((event) => event.name),
+    [activeEvents, events]
   );
+  const eventDates = useMemo(() => eventDateMap(events), [events]);
 
   const { matrix, maxAbs } = useMemo(() => {
-    const mat: (number | null)[][] = [];
-    let mx = 0;
-    for (const en of activeEventNames) {
-      const row: (number | null)[] = [];
+    const rows: Array<Array<number | null>> = [];
+    let maxValue = 0;
+
+    for (const eventName of activeEventNames) {
+      const row: Array<number | null> = [];
+      const eventDate = eventDates[eventName];
+      const available = isAssetAvailableForEvent(selectedAsset, eventDate, availability);
+
       for (const poi of POIS) {
-        const v = poiRet(eventReturns, selectedAsset, en, poi.offset);
-        row.push(isNaN(v) ? null : Math.round(v * 10) / 10);
-        if (!isNaN(v)) mx = Math.max(mx, Math.abs(v));
-      }
-      mat.push(row);
-    }
-    if (live.returns?.[selectedAsset] && live.dayN !== null) {
-      const row: (number | null)[] = [];
-      for (const poi of POIS) {
-        if (poi.offset >= 0 && poi.offset <= live.dayN) {
-          const v = live.returns[selectedAsset]?.[poi.offset];
-          row.push(v !== undefined ? Math.round(v * 10) / 10 : null);
-          if (v !== undefined) mx = Math.max(mx, Math.abs(v));
-        } else {
+        if (!available) {
           row.push(null);
+          continue;
         }
+        const series = eventReturns[selectedAsset]?.[eventName];
+        const value = anchorSeriesValue(series, poi.offset, 'day0');
+        const rounded = value === null ? null : Math.round(value * 10) / 10;
+        row.push(rounded);
+        if (rounded !== null) maxValue = Math.max(maxValue, Math.abs(rounded));
       }
-      mat.push(row);
+      rows.push(row);
     }
-    return { matrix: mat, maxAbs: mx || 5 };
-  }, [eventReturns, selectedAsset, activeEventNames, live]);
+
+    if (live.returns?.[selectedAsset] && live.dayN !== null) {
+      const row: Array<number | null> = [];
+      for (const poi of POIS) {
+        if (poi.offset < 0 || poi.offset > live.dayN) {
+          row.push(null);
+          continue;
+        }
+        const value = anchorSeriesValue(live.returns[selectedAsset], poi.offset, 'day0');
+        const rounded = value === null ? null : Math.round(value * 10) / 10;
+        row.push(rounded);
+        if (rounded !== null) maxValue = Math.max(maxValue, Math.abs(rounded));
+      }
+      rows.push(row);
+    }
+
+    return { matrix: rows, maxAbs: maxValue || 5 };
+  }, [activeEventNames, availability, eventDates, eventReturns, live.dayN, live.returns, selectedAsset]);
 
   const meta = assetMeta[selectedAsset];
   const isRates = meta?.is_rates_bp || false;
   const unit = unitLabel(meta);
-  const dLabel = displayLabel(meta, selectedAsset);
-  
-  const allEventLabels = [
+  const title = displayLabel(meta, selectedAsset);
+  const rowLabels = [
     ...activeEventNames,
-    ...(live.returns?.[selectedAsset] && live.dayN !== null
-      ? [`▶ ${live.name} (D+${live.dayN})`] : []),
+    ...(live.returns?.[selectedAsset] && live.dayN !== null ? [`Live: ${live.name} (D+${live.dayN})`] : []),
   ];
 
   return (
     <ChartCard
-      title={`${dLabel} — Return Heatmap`}
-      subtitle={`${allEventLabels.length} events × ${POIS.length} horizons · ${unit}`}
+      title={`${title} - Return Heatmap`}
+      subtitle={`${rowLabels.length} rows x ${POIS.length} horizons | ${unit}`}
       controls={
         <div className="flex items-center gap-3">
-          <Select label="Class" value={selectedClass}
-            onChange={setSelectedClass}
-            options={allClasses.map(c => ({ value: c, label: c }))} />
-          <Select label="Asset" value={selectedAsset}
+          <Select value={selectedClass} onChange={setSelectedClass} options={allClasses.map((value) => ({ value, label: value }))} />
+          <Select
+            value={selectedAsset}
             onChange={setSelectedAsset}
-            options={classAssets.map(a => ({ value: a, label: displayLabel(assetMeta[a], a) }))} />
+            options={classAssets.map((asset) => ({ value: asset, label: displayLabel(assetMeta[asset], asset) }))}
+          />
         </div>
       }
     >
+      <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
+        Each cell shows the rebased return at that POI for the selected asset and event. The live row, when present, uses the currently loaded live event on the same Day 0 basis. Blank cells mean the asset was unavailable or had insufficient coverage for that event and horizon, not a zero return.
+      </div>
+
       <div className="overflow-x-auto p-4">
         <table className="w-full border-collapse text-xs font-mono">
           <thead>
@@ -101,31 +114,31 @@ export function HeatmapTab() {
               <th className="text-left px-3 py-2 text-text-muted border-b border-border font-medium w-[220px] sticky left-0 bg-bg-panel z-10">
                 Event
               </th>
-              {POIS.map(p => (
-                <th key={p.label} className="px-3 py-2 text-text-muted border-b border-border font-medium text-center min-w-[72px]">
-                  {p.label}
+              {POIS.map((poi) => (
+                <th key={poi.label} className="px-3 py-2 text-text-muted border-b border-border font-medium text-center min-w-[72px]">
+                  {poi.label}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {allEventLabels.map((en, i) => {
-              const isLive = en.startsWith('▶');
+            {rowLabels.map((label, rowIndex) => {
+              const isLive = label.startsWith('Live:');
               return (
-                <tr key={en} className={`${isLive ? 'border-t-2 border-live/30' : ''} hover:bg-bg-hover/30 transition-colors`}>
+                <tr key={label} className={`${isLive ? 'border-t-2 border-live/30' : ''} hover:bg-bg-hover/30 transition-colors`}>
                   <td className={`px-3 py-1.5 border-b border-border/50 sticky left-0 bg-bg-panel z-10 ${isLive ? 'text-live font-medium' : 'text-text-secondary'}`}>
-                    {en.length > 28 ? en.slice(0, 28) + '…' : en}
+                    {label.length > 28 ? `${label.slice(0, 28)}...` : label}
                   </td>
-                  {POIS.map((p, j) => {
-                    const val = matrix[i]?.[j];
+                  {POIS.map((poi, columnIndex) => {
+                    const value = matrix[rowIndex]?.[columnIndex];
                     return (
                       <td
-                        key={p.label}
+                        key={poi.label}
                         className="px-2 py-1.5 text-center border-b border-border/50"
-                        style={{ backgroundColor: val !== null ? heatColor(val, maxAbs, isRates) : 'transparent' }}
+                        style={{ backgroundColor: value !== null ? heatColor(value, maxAbs, isRates) : 'transparent' }}
                       >
-                        <span className={val !== null ? 'text-text-primary' : 'text-text-dim'}>
-                          {val !== null ? `${val >= 0 ? '+' : ''}${val.toFixed(1)}` : '—'}
+                        <span className={value !== null ? 'text-text-primary' : 'text-text-dim'}>
+                          {value !== null ? `${value >= 0 ? '+' : ''}${value.toFixed(1)}` : '--'}
                         </span>
                       </td>
                     );

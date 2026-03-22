@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Button } from '@/components/ui/ChartCard';
+import { ChartCard, Button, Badge, SliderControl } from '@/components/ui/ChartCard';
 import { ALL_TAGS } from '@/config/events';
-import { TRIGGER_ASSET } from '@/config/engine';
+import { DEFAULT_LIVE_SIM_ASSETS, TRIGGER_ASSET } from '@/config/engine';
+import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
+import { displayLabel } from '@/engine/returns';
 
 export function LiveConfigTab() {
-  const { live, setLive } = useDashboard();
+  const { live, provenance, allLabels, assetMeta, similarityAssets, setSimilarityAssets, setLive, resetLive, setProvenance } = useDashboard();
   const [status, setStatus] = useState('');
   const [pulling, setPulling] = useState(false);
   const [triggerOverride, setTriggerOverride] = useState(false);
@@ -16,126 +18,280 @@ export function LiveConfigTab() {
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [currentPriceDate, setCurrentPriceDate] = useState('');
   const [priceStatus, setPriceStatus] = useState('');
+  const [assetQuery, setAssetQuery] = useState('');
 
-  // Fetch Brent at a specific date
   const fetchPrice = useCallback(async (dateStr?: string): Promise<{ price: number; date: string } | null> => {
     try {
       const params = dateStr ? `?date=${dateStr}` : '';
-      const res = await fetch(`/api/trigger${params}`);
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (data.price) return { price: data.price, date: data.date || '' };
+      const response = await fetch(`/api/trigger${params}`);
+      if (!response.ok) return null;
+      const data = await response.json();
+      if (!data.price) return null;
+      return { price: data.price, date: data.date || '' };
+    } catch {
       return null;
-    } catch { return null; }
+    }
   }, []);
 
-  // Fetch both Day 0 + current on mount and when date changes
-  const fetchBothPrices = useCallback(async (day0DateStr?: string) => {
-    setPriceStatus('⟳');
-    const [d0, curr] = await Promise.all([
-      day0DateStr ? fetchPrice(day0DateStr) : Promise.resolve(null),
-      fetchPrice(), // no date = latest
+  const fetchBothPrices = useCallback(async (day0Date?: string) => {
+    setPriceStatus('Loading');
+    const [day0, current] = await Promise.all([
+      day0Date ? fetchPrice(day0Date) : Promise.resolve(null),
+      fetchPrice(),
     ]);
-    if (d0) {
-      setDay0Price(d0.price);
-      setDay0PriceDate(d0.date);
-      if (!triggerOverride) setLive({ trigger: d0.price });
+
+    if (day0) {
+      setDay0Price(day0.price);
+      setDay0PriceDate(day0.date);
+      if (!triggerOverride) setLive({ trigger: day0.price });
     }
-    if (curr) {
-      setCurrentPrice(curr.price);
-      setCurrentPriceDate(curr.date);
+    if (current) {
+      setCurrentPrice(current.price);
+      setCurrentPriceDate(current.date);
     }
-    setPriceStatus(d0 || curr ? '' : '⚠ fetch failed');
-  }, [fetchPrice, triggerOverride, setLive]);
+
+    setPriceStatus(day0 || current ? '' : 'Fetch failed');
+  }, [fetchPrice, setLive, triggerOverride]);
 
   useEffect(() => {
     fetchBothPrices(live.day0 || undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchBothPrices, live.day0]);
+
+  const similarityOptions = useMemo(
+    () => [...allLabels].sort((left, right) => displayLabel(assetMeta[left], left).localeCompare(displayLabel(assetMeta[right], right))),
+    [allLabels, assetMeta]
+  );
+
+  const filteredSimilarityOptions = useMemo(() => {
+    const query = assetQuery.trim().toLowerCase();
+    if (!query) return similarityOptions;
+    return similarityOptions.filter((asset) => {
+      const label = displayLabel(assetMeta[asset], asset).toLowerCase();
+      const assetClass = (assetMeta[asset]?.class || '').toLowerCase();
+      return label.includes(query) || asset.toLowerCase().includes(query) || assetClass.includes(query);
+    });
+  }, [assetMeta, assetQuery, similarityOptions]);
+
+  const requestedDay0 = live.day0 || '';
+  const maxAnalysisDay = live.tradingDayN ?? live.dayN ?? 0;
+  const analysisOverrideEnabled = live.analysisDayN !== null;
+  const analysisDay = analysisOverrideEnabled ? Math.min(live.analysisDayN ?? 0, maxAnalysisDay) : maxAnalysisDay;
+  const analysisDate = useMemo(() => {
+    if (analysisDay < 0 || analysisDay >= live.businessDates.length) return null;
+    return live.businessDates[analysisDay] ?? null;
+  }, [analysisDay, live.businessDates]);
+  const effectiveScoringDay = useMemo(
+    () => (live.scoringReturns || live.returns ? getEffectiveScoringDay(live, similarityAssets) : null),
+    [live, similarityAssets],
+  );
+  const effectiveScoringDate = useMemo(
+    () => (live.scoringReturns || live.returns ? getEffectiveScoringDate(live, similarityAssets) : null),
+    [live, similarityAssets],
+  );
+  const day0ResolutionNote = useMemo(() => {
+    if (!requestedDay0 || !day0PriceDate || requestedDay0 === day0PriceDate) return '';
+    return `Requested ${requestedDay0} is not a trading session for ${TRIGGER_ASSET}. Using the latest available close on or before Day 0: ${day0PriceDate}.`;
+  }, [day0PriceDate, requestedDay0]);
+
+  const liveAnchorNote = useMemo(() => {
+    if (!requestedDay0 || !live.actualDay0 || requestedDay0 === live.actualDay0) return '';
+    return `Live scoring is anchored to ${live.actualDay0}, the latest observed market date on or before requested Day 0 ${requestedDay0}.`;
+  }, [live.actualDay0, requestedDay0]);
 
   const handleDateChange = useCallback((newDate: string) => {
     setLive({ day0: newDate });
     if (newDate.length === 10) fetchBothPrices(newDate);
-  }, [setLive, fetchBothPrices]);
+  }, [fetchBothPrices, setLive]);
 
   async function handlePull() {
+    if (!live.day0) {
+      setStatus('Choose a Day 0 date before pulling live data.');
+      return;
+    }
+
     setPulling(true);
-    setStatus('⟳ Pulling live data...');
+    setStatus('Pulling live data...');
+
     try {
-      const res = await fetch(`/api/live-pull?date=${live.day0}&assets=all`);
-      if (!res.ok) throw new Error(`${res.status}`);
-      const data = await res.json();
+      const response = await fetch(`/api/live-pull?date=${live.day0}&assets=all&mode=shared`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
       if (data.error) throw new Error(data.error);
+
       const returns: Record<string, Record<number, number>> = {};
+      const levels: Record<string, Record<number, number>> = {};
+      const scoringReturns: Record<string, Record<number, number>> = {};
+      const scoringLevels: Record<string, Record<number, number>> = {};
+
       for (const [label, series] of Object.entries(data.returns || {})) {
         returns[label] = {};
-        for (const [off, val] of Object.entries(series as Record<string, number>))
-          returns[label][parseInt(off)] = val;
+        for (const [offset, value] of Object.entries(series as Record<string, number>)) {
+          returns[label][parseInt(offset, 10)] = value;
+        }
       }
-      setLive({ returns, dayN: data.dayN, triggerPctile: data.triggerZScore || null });
-      setStatus(`✅ ${live.name} · Day+${data.dayN} · ${Object.keys(returns).length} assets`);
-    } catch (err: any) {
-      setStatus('⚠ API unavailable — using Demo');
-      generateMockLiveData();
-    } finally { setPulling(false); }
+      for (const [label, series] of Object.entries(data.levels || {})) {
+        levels[label] = {};
+        for (const [offset, value] of Object.entries(series as Record<string, number>)) {
+          levels[label][parseInt(offset, 10)] = value;
+        }
+      }
+      for (const [label, series] of Object.entries(data.scoringReturns || {})) {
+        scoringReturns[label] = {};
+        for (const [offset, value] of Object.entries(series as Record<string, number>)) {
+          scoringReturns[label][parseInt(offset, 10)] = value;
+        }
+      }
+      for (const [label, series] of Object.entries(data.scoringLevels || {})) {
+        scoringLevels[label] = {};
+        for (const [offset, value] of Object.entries(series as Record<string, number>)) {
+          scoringLevels[label][parseInt(offset, 10)] = value;
+        }
+      }
+
+      setLive({
+        returns,
+        levels,
+        scoringReturns,
+        scoringLevels,
+        analysisDayN: null,
+        dayN: data.dayN,
+        tradingDayN: data.tradingDayN ?? null,
+        triggerPctile: data.triggerZScore ?? null,
+        triggerZScore: data.triggerZScore ?? null,
+        triggerDate: data.triggerDate ?? data.actualDay0 ?? live.day0,
+        actualDay0: data.actualDay0 ?? live.day0,
+        businessDates: Array.isArray(data.businessDates) ? data.businessDates : [],
+        asOfDate: data.asOfDate ?? data.timestamp ?? null,
+        requestMode: data.provenance?.mode ?? (data.requestMode || 'private'),
+        snapshotDate: data.snapshotDate ?? null,
+        assetStatus: data.assetStatus || {},
+        warnings: Array.isArray(data.warnings) ? data.warnings : [],
+      });
+      setProvenance({
+        liveSource: 'live',
+        liveMode: data.provenance?.mode ?? 'private',
+        liveAsOf: data.asOfDate ?? data.timestamp ?? null,
+        liveSnapshotDate: data.snapshotDate ?? null,
+      });
+
+      const modeLabel = data.provenance?.mode === 'shared' ? 'shared snapshot' : 'private scenario';
+      const actualDay0 = data.actualDay0 ?? live.day0;
+      const anchorText = actualDay0 && live.day0 && actualDay0 !== live.day0
+        ? `requested ${live.day0}, anchored ${actualDay0}`
+        : `anchored ${actualDay0 ?? live.day0 ?? '--'}`;
+      setStatus(`${live.name} loaded from ${modeLabel}: ${anchorText} | Day+${data.dayN} across ${Object.keys(returns).length} assets`);
+    } catch (error: any) {
+      resetLive();
+      setStatus(`Live pull failed: ${error.message}. Demo mode is now manual only.`);
+    } finally {
+      setPulling(false);
+    }
   }
 
   function generateMockLiveData() {
     const mockReturns: Record<string, Record<number, number>> = {};
+    const mockLevels: Record<string, Record<number, number>> = {};
     const assets = [
-      'S&P 500','Brent Futures','Gold','VIX','DXY','US 10Y Yield',
-      'WTI Crude (spot)','USDJPY','Copper','MSCI EM','Energy Equities',
-      'Silver','Natural Gas Fut','Oil Vol (OVX)','Defense (ITA)',
-      'Airlines (JETS)','US HY OAS','Bitcoin','EURUSD','Shipping (BDRY)',
+      'S&P 500', 'Brent Futures', 'Gold', 'VIX', 'DXY', 'US 10Y Yield',
+      'WTI Crude (spot)', 'USDJPY', 'Copper', 'MSCI EM', 'Energy Equities',
+      'Silver', 'Natural Gas Fut', 'Oil Vol (OVX)', 'Defense (ITA)',
+      'Airlines (JETS)', 'US HY OAS', 'Bitcoin', 'EURUSD', 'Shipping (BDRY)',
     ];
-    for (const a of assets) {
-      mockReturns[a] = {};
-      let cum = 0;
-      const isOil = a.includes('Crude') || a.includes('Brent') || a.includes('Gas');
-      const isSafe = a.includes('Gold') || a.includes('Treasury');
-      const isVol = a.includes('VIX') || a.includes('Vol');
+
+    for (const asset of assets) {
+      mockReturns[asset] = {};
+      mockLevels[asset] = {};
+      let cumulative = 0;
+      let level = 100;
+      const isOil = asset.includes('Crude') || asset.includes('Brent') || asset.includes('Gas');
+      const isSafe = asset.includes('Gold') || asset.includes('Treasury');
+      const isVol = asset.includes('VIX') || asset.includes('Vol');
       const drift = isOil ? 0.15 : isSafe ? 0.08 : isVol ? 0.3 : -0.05;
-      const vol = isVol ? 1.5 : 0.8;
-      for (let d = 0; d <= 25; d++) {
-        cum += drift + (Math.random() - 0.48) * vol;
-        mockReturns[a][d] = Math.round(cum * 100) / 100;
+      const volatility = isVol ? 1.5 : 0.8;
+
+      for (let day = 0; day <= 25; day += 1) {
+        cumulative += drift + (Math.random() - 0.48) * volatility;
+        level = Math.max(1, level * (1 + cumulative / 1000));
+        mockReturns[asset][day] = Math.round(cumulative * 100) / 100;
+        mockLevels[asset][day] = Math.round(level * 100) / 100;
       }
     }
-    setLive({ returns: mockReturns, dayN: 25, triggerPctile: 0.8 });
-    setStatus(`✅ Demo · Day+25 · ${assets.length} assets`);
+
+    const today = new Date().toISOString();
+    setLive({
+      returns: mockReturns,
+      levels: mockLevels,
+      scoringReturns: mockReturns,
+      scoringLevels: mockLevels,
+      analysisDayN: null,
+      dayN: 25,
+      tradingDayN: 25,
+      triggerPctile: 0.8,
+      triggerZScore: 0.8,
+      triggerDate: live.day0,
+      actualDay0: live.day0,
+      businessDates: Array.from({ length: 26 }, (_, index) => `D+${index}`),
+      asOfDate: today,
+      requestMode: null,
+      snapshotDate: null,
+      assetStatus: {},
+      warnings: [],
+    });
+    setProvenance({ liveSource: 'demo', liveMode: 'demo', liveAsOf: today, liveSnapshotDate: null });
+    setStatus(`Demo mode active with ${assets.length} assets`);
   }
 
   return (
     <div className="p-4 space-y-4">
-      <ChartCard title="Live Event Configuration">
+      <ChartCard
+        title="Live Event Configuration"
+        subtitle="Explicit live or demo mode. No silent fallback."
+        controls={
+          provenance.liveSource !== 'none' ? (
+            <Badge color={provenance.liveSource === 'demo' ? 'amber' : 'teal'}>
+              {provenance.liveSource === 'demo' ? 'Demo' : 'Live'}
+            </Badge>
+          ) : undefined
+        }
+      >
         <div className="p-5 space-y-5">
-          {/* Row 1: Name + Date */}
           <div className="grid grid-cols-2 gap-5">
             <Field label="Event Name">
-              <input value={live.name} onChange={e => setLive({ name: e.target.value })}
-                className="input-field" />
+              <input
+                value={live.name}
+                onChange={(event) => setLive({ name: event.target.value })}
+                className="input-field"
+              />
             </Field>
             <Field label="Day 0 Date">
-              <input type="date" value={live.day0 || ''}
-                onChange={e => handleDateChange(e.target.value)}
-                className="input-field" />
+              <input
+                type="date"
+                value={live.day0 || ''}
+                onChange={(event) => handleDateChange(event.target.value)}
+                className="input-field"
+              />
             </Field>
           </div>
 
-          {/* Tags */}
           <Field label="Event Tags">
             <div className="flex flex-wrap gap-1.5">
-              {ALL_TAGS.map(tag => {
-                const on = live.tags.has(tag);
+              {ALL_TAGS.map((tag) => {
+                const enabled = live.tags.has(tag);
                 return (
-                  <button key={tag} onClick={() => {
-                    const n = new Set(live.tags);
-                    on ? n.delete(tag) : n.add(tag);
-                    setLive({ tags: n });
-                  }}
-                    className={`px-2.5 py-0.5 text-[10px] border rounded-sm transition-all
-                      ${on ? 'bg-[#00e5ff]/10 text-[#00e5ff] border-[#00e5ff]/30'
-                           : 'bg-transparent text-[#4a4a5a] border-[#1e1e2e] hover:text-[#6a6a7a]'}`}>
+                  <button
+                    key={tag}
+                    onClick={() => {
+                      const next = new Set(live.tags);
+                      if (enabled) next.delete(tag);
+                      else next.add(tag);
+                      setLive({ tags: next });
+                    }}
+                    className={`px-2.5 py-0.5 text-[10px] border rounded-sm transition-all ${
+                      enabled
+                        ? 'bg-[#00e5ff]/10 text-[#00e5ff] border-[#00e5ff]/30'
+                        : 'bg-transparent text-[#4a4a5a] border-[#1e1e2e] hover:text-[#6a6a7a]'
+                    }`}
+                  >
                     {tag}
                   </button>
                 );
@@ -143,74 +299,139 @@ export function LiveConfigTab() {
             </div>
           </Field>
 
-          {/* Brent Prices — Day 0 + Current */}
+          <Field label="Live Sim Asset Comparer">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <Button size="xs" variant="secondary" onClick={() => setSimilarityAssets(DEFAULT_LIVE_SIM_ASSETS.filter((asset) => allLabels.includes(asset)))}>
+                Default 5
+              </Button>
+              <Button size="xs" variant="secondary" onClick={() => setSimilarityAssets([...allLabels])}>
+                Select All Assets
+              </Button>
+              <Button size="xs" variant="ghost" onClick={() => setSimilarityAssets([])}>
+                Clear
+              </Button>
+              <Badge color="teal">{similarityAssets.length} selected</Badge>
+            </div>
+            <input
+              value={assetQuery}
+              onChange={(event) => setAssetQuery(event.target.value)}
+              placeholder="Search all assets for live comparison..."
+              className="input-field mb-3"
+            />
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {filteredSimilarityOptions.map((asset) => {
+                const selected = similarityAssets.includes(asset);
+                return (
+                  <button
+                    key={asset}
+                    onClick={() => {
+                      const next = selected
+                        ? similarityAssets.filter((value) => value !== asset)
+                        : [...similarityAssets, asset];
+                      setSimilarityAssets(next);
+                    }}
+                    className={`text-left px-2.5 py-2 rounded-sm border transition-all ${
+                      selected
+                        ? 'border-accent-teal/30 bg-accent-teal/10 text-accent-teal'
+                        : 'border-border/40 bg-bg-cell/30 text-text-secondary hover:border-border/70'
+                    }`}
+                  >
+                    <div className="text-2xs font-medium">{displayLabel(assetMeta[asset], asset)}</div>
+                    <div className="text-[10px] opacity-70 mt-1">{assetMeta[asset]?.class || 'Unknown'}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
+
           <div className="p-4 border border-[#1a1a2e] bg-[#0a0a10]">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[10px] uppercase tracking-widest text-[#4a4a5a]">{TRIGGER_ASSET}</span>
               <div className="flex items-center gap-2">
                 <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="checkbox" checked={triggerOverride}
-                    onChange={e => setTriggerOverride(e.target.checked)}
-                    className="w-3 h-3 accent-[#ffab40]" />
+                  <input
+                    type="checkbox"
+                    checked={triggerOverride}
+                    onChange={(event) => setTriggerOverride(event.target.checked)}
+                    className="w-3 h-3 accent-[#ffab40]"
+                  />
                   <span className="text-[10px] text-[#ffab40]">Manual override</span>
                 </label>
                 {!triggerOverride && (
-                  <button onClick={() => fetchBothPrices(live.day0 || undefined)}
-                    className="text-[10px] text-[#00e5ff] hover:text-[#00e5ff]/70">↻ Refresh</button>
+                  <button
+                    onClick={() => fetchBothPrices(live.day0 || undefined)}
+                    className="text-[10px] text-[#00e5ff] hover:text-[#00e5ff]/70"
+                  >
+                    Refresh
+                  </button>
                 )}
                 {priceStatus && <span className="text-[10px] text-[#ffab40]">{priceStatus}</span>}
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-4">
-              {/* Day 0 Price (used for scoring) */}
               <div>
                 <div className="text-[9px] text-[#3a3a4a] uppercase tracking-wider mb-1">
                   Day 0 Price <span className="text-[#00e5ff]">(used for scoring)</span>
                 </div>
                 {triggerOverride ? (
-                  <input type="number" value={live.trigger} step="0.01"
-                    onChange={e => setLive({ trigger: parseFloat(e.target.value) || 0 })}
-                    className="input-field text-lg font-semibold w-full" />
+                  <input
+                    type="number"
+                    value={live.trigger}
+                    step="0.01"
+                    onChange={(event) => setLive({ trigger: parseFloat(event.target.value) || 0 })}
+                    className="input-field text-lg font-semibold w-full"
+                  />
                 ) : (
-                  <div className="text-xl font-bold text-[#e0e0e8]">
-                    ${day0Price?.toFixed(2) ?? '—'}
-                    {day0PriceDate && (
-                      <span className="text-[10px] text-[#3a3a4a] ml-2 font-normal">{day0PriceDate}</span>
+                  <div>
+                    <div className="text-xl font-bold text-[#e0e0e8]">
+                      ${day0Price?.toFixed(2) ?? '--'}
+                      {day0PriceDate && <span className="text-[10px] text-[#3a3a4a] ml-2 font-normal">{day0PriceDate}</span>}
+                    </div>
+                    {day0ResolutionNote && (
+                      <div className="text-[10px] text-[#ffab40] mt-1 leading-snug">
+                        {day0ResolutionNote}
+                      </div>
                     )}
                   </div>
                 )}
               </div>
-              {/* Current Price (reference only) */}
+
               <div>
                 <div className="text-[9px] text-[#3a3a4a] uppercase tracking-wider mb-1">
                   Current Price <span className="text-[#6a6a7a]">(reference)</span>
                 </div>
                 <div className="text-xl font-bold text-[#6a6a7a]">
-                  ${currentPrice?.toFixed(2) ?? '—'}
-                  {currentPriceDate && (
-                    <span className="text-[10px] text-[#3a3a4a] ml-2 font-normal">{currentPriceDate}</span>
-                  )}
+                  ${currentPrice?.toFixed(2) ?? '--'}
+                  {currentPriceDate && <span className="text-[10px] text-[#3a3a4a] ml-2 font-normal">{currentPriceDate}</span>}
                 </div>
                 {day0Price && currentPrice && (
                   <div className={`text-[10px] mt-0.5 ${currentPrice > day0Price ? 'text-[#ff5252]' : 'text-[#69f0ae]'}`}>
-                    {currentPrice > day0Price ? '▲' : '▼'} {((currentPrice / day0Price - 1) * 100).toFixed(1)}% since Day 0
+                    {((currentPrice / day0Price - 1) * 100).toFixed(1)}% since Day 0
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* CPI + Fed */}
           <div className="grid grid-cols-2 gap-5">
             <Field label="CPI Regime">
-              <select value={live.cpi} onChange={e => setLive({ cpi: e.target.value })} className="input-field">
+              <select
+                value={live.cpi}
+                onChange={(event) => setLive({ cpi: event.target.value })}
+                className="input-field"
+              >
                 <option value="high">High &gt;4%</option>
                 <option value="mid">Mid 2-4%</option>
                 <option value="low">Low &lt;2%</option>
               </select>
             </Field>
             <Field label="Fed Stance">
-              <select value={live.fed} onChange={e => setLive({ fed: e.target.value })} className="input-field">
+              <select
+                value={live.fed}
+                onChange={(event) => setLive({ fed: event.target.value })}
+                className="input-field"
+              >
                 <option value="hiking">Hiking</option>
                 <option value="cutting">Cutting</option>
                 <option value="hold">Hold</option>
@@ -218,34 +439,105 @@ export function LiveConfigTab() {
             </Field>
           </div>
 
-          {/* Actions */}
           <div className="flex items-center gap-3 pt-3 border-t border-[#1a1a2e]">
             <Button onClick={handlePull} disabled={pulling}>
-              {pulling ? '⟳ Pulling...' : '⟳ Refresh Live Data'}
+              {pulling ? 'Pulling...' : 'Refresh Live Data'}
             </Button>
             <Button onClick={generateMockLiveData} variant="secondary">Demo Mode</Button>
             {status && (
-              <span className={`text-xs ${status.startsWith('✅') ? 'text-[#69f0ae]' : 'text-[#ffab40]'}`}>
+              <span className={`text-xs ${status.startsWith('Live pull failed') ? 'text-[#ffab40]' : 'text-[#69f0ae]'}`}>
                 {status}
               </span>
             )}
           </div>
 
-          {/* Active indicator */}
           {live.dayN !== null && (
             <div className="p-3 border border-[#1a1a2e] bg-[#0a0a10] mt-2">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-2 h-2 rounded-full bg-[#ffab40] animate-pulse" />
-                <span className="text-xs text-[#ffab40] font-medium">Live Event Active</span>
-              </div>
-              <div className="grid grid-cols-4 gap-3 text-[10px] text-[#6a6a7a]">
-                <div>Day+{live.dayN}</div>
-                <div>{Object.keys(live.returns || {}).length} assets</div>
-                <div>{TRIGGER_ASSET}: ${live.trigger?.toFixed(2)}</div>
-                <div>z: {live.triggerPctile?.toFixed(2) ?? '—'}</div>
-              </div>
+                <span className="text-xs text-[#ffab40] font-medium">
+              {provenance.liveSource === 'demo'
+                ? 'Demo event active'
+                : live.requestMode === 'shared'
+                  ? 'Shared live snapshot active'
+                  : 'Private live scenario active'}
+            </span>
+          </div>
+          <div className="grid grid-cols-5 gap-3 text-[10px] text-[#6a6a7a]">
+            <div>Day+{live.dayN}</div>
+            <div>Trading D+{live.tradingDayN ?? '--'}</div>
+            <div>Analysis D+{analysisDay}</div>
+            <div>Effective D+{effectiveScoringDay ?? '--'}</div>
+            <div>{Object.keys(live.returns || {}).length} assets</div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-[10px] text-[#6a6a7a] mt-2">
+            <div>{TRIGGER_ASSET}: ${live.trigger?.toFixed(2)}</div>
+            <div>Analysis date: {analysisDate || effectiveScoringDate || '--'}</div>
+          </div>
+          {liveAnchorNote && (
+            <div className="mt-2 text-[10px] text-[#ffab40]">
+              {liveAnchorNote}
             </div>
           )}
+          <div className="mt-3 p-3 border border-[#1a1a2e] bg-[#05050a]">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-[#4a4a5a]">Analysis Day Override</div>
+                <div className="text-[10px] text-[#6a6a7a] mt-1">
+                  Pretend the live event is only at an earlier day without re-pulling data.
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={analysisOverrideEnabled}
+                    onChange={(event) => setLive({ analysisDayN: event.target.checked ? maxAnalysisDay : null })}
+                    className="w-3 h-3 accent-[#ffab40]"
+                  />
+                  <span className="text-[10px] text-[#ffab40]">Enable override</span>
+                </label>
+                {analysisOverrideEnabled && (
+                  <Button size="xs" variant="ghost" onClick={() => setLive({ analysisDayN: null })}>
+                    Use latest
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-4 flex-wrap">
+              <SliderControl
+                label="Day"
+                value={analysisDay}
+                onChange={(value) => setLive({ analysisDayN: Math.min(Math.max(value, 0), maxAnalysisDay) })}
+                min={0}
+                max={Math.max(maxAnalysisDay, 1)}
+                step={1}
+                suffix="d"
+              />
+              <div className="text-[10px] text-[#6a6a7a]">
+                {analysisOverrideEnabled
+                  ? `Override active: scoring behaves as if we are only at D+${analysisDay}${analysisDate ? ` (${analysisDate})` : ''}.`
+                  : `Latest live basis remains D+${maxAnalysisDay}${effectiveScoringDate ? ` (${effectiveScoringDate})` : ''}.`}
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-[10px] text-[#6a6a7a] mt-2">
+            <div>Mode: {live.requestMode || (provenance.liveSource === 'demo' ? 'demo' : '--')}</div>
+            <div>Score date: {effectiveScoringDate || '--'}</div>
+            <div>Snapshot: {live.snapshotDate || '--'}</div>
+            <div>Warnings: {live.warnings.length}</div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-[10px] text-[#6a6a7a] mt-2">
+            <div>As of: {live.asOfDate ? new Date(live.asOfDate).toLocaleDateString() : '--'}</div>
+            <div>Sim assets in scoring: {similarityAssets.length}</div>
+          </div>
+          {live.warnings.length > 0 && (
+            <div className="mt-2 text-[10px] text-[#ffab40]">
+              {live.warnings.join(' | ')}
+            </div>
+          )}
+        </div>
+      )}
         </div>
       </ChartCard>
     </div>
