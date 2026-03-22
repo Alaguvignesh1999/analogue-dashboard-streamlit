@@ -23,6 +23,7 @@ export interface CustomEventDef extends EventDef {
 interface LiveState {
   name: string;
   day0: string | null;
+  analysisDayN: number | null;
   tags: Set<string>;
   trigger: number;
   triggerPctile: number | null;
@@ -213,6 +214,7 @@ export const useDashboard = create<DashboardState>((set) => ({
   live: {
     name: liveDefaults.name,
     day0: liveDefaults.day0,
+    analysisDayN: null,
     tags: new Set(liveDefaults.tags),
     trigger: 70,
     triggerPctile: null,
@@ -249,6 +251,7 @@ export const useDashboard = create<DashboardState>((set) => ({
       levels: null,
       scoringReturns: null,
       scoringLevels: null,
+      analysisDayN: null,
       dayN: null,
       tradingDayN: null,
       actualDay0: null,

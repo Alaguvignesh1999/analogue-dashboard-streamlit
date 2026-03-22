@@ -4,7 +4,7 @@ import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
 import { displayLabel, unitLabel, poiRet } from '@/engine/returns';
 import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveScoringDay } from '@/engine/live';
-import { selectEvents, compositeReturn } from '@/engine/similarity';
+import { filterScoresByActiveEvents, selectEvents, compositeReturn } from '@/engine/similarity';
 import { POIS, POST_WINDOW_TD } from '@/config/engine';
 import { nanMedian } from '@/lib/math';
 import { fmtReturn } from '@/lib/format';
@@ -27,7 +27,7 @@ function heatColor(value: number, maxAbs: number, isRates: boolean): string {
 }
 
 export function PathsTab() {
-  const { eventReturns, assetMeta, allClasses, scores, scoreCutoff, live } = useDashboard();
+  const { eventReturns, assetMeta, allClasses, scores, scoreCutoff, live, activeEvents } = useDashboard();
 
   const [selectedClass, setSelectedClass] = useState('Oil & Energy');
   const [selectedAsset, setSelectedAsset] = useState('Brent Futures');
@@ -43,7 +43,8 @@ export function PathsTab() {
     }
   }, [classAssets, selectedAsset]);
 
-  const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
+  const activeScores = useMemo(() => filterScoresByActiveEvents(scores, activeEvents), [activeEvents, scores]);
+  const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
   const dayN = getEffectiveScoringDay(live, [selectedAsset]);
   const displayDayN = getLiveScoringDay(live);
   const effectiveDate = getEffectiveScoringDate(live, [selectedAsset]);
@@ -53,7 +54,7 @@ export function PathsTab() {
 
   const chartData = useMemo(() => {
     const offsets = Array.from({ length: POST_WINDOW_TD + 1 }, (_, index) => index);
-    const composite = compositeReturn(eventReturns, selectedAsset, selectedEvents, scores);
+    const composite = compositeReturn(eventReturns, selectedAsset, selectedEvents, activeScores);
 
     return offsets.map((offset) => {
       const point: Record<string, number> & { offset: number } = { offset };
@@ -68,7 +69,7 @@ export function PathsTab() {
       }
       return point;
     });
-  }, [eventReturns, selectedAsset, selectedEvents, scores, live, displayDayN]);
+  }, [activeScores, eventReturns, selectedAsset, selectedEvents, live, displayDayN]);
 
   const fwdHeatmap = useMemo(() => {
     const futurePois = POIS.filter((poi) => poi.offset > dayN);

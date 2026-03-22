@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Button, Badge } from '@/components/ui/ChartCard';
+import { ChartCard, Button, Badge, SliderControl } from '@/components/ui/ChartCard';
 import { ALL_TAGS } from '@/config/events';
 import { DEFAULT_LIVE_SIM_ASSETS, TRIGGER_ASSET } from '@/config/engine';
 import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
@@ -73,6 +73,13 @@ export function LiveConfigTab() {
   }, [assetMeta, assetQuery, similarityOptions]);
 
   const requestedDay0 = live.day0 || '';
+  const maxAnalysisDay = live.tradingDayN ?? live.dayN ?? 0;
+  const analysisOverrideEnabled = live.analysisDayN !== null;
+  const analysisDay = analysisOverrideEnabled ? Math.min(live.analysisDayN ?? 0, maxAnalysisDay) : maxAnalysisDay;
+  const analysisDate = useMemo(() => {
+    if (analysisDay < 0 || analysisDay >= live.businessDates.length) return null;
+    return live.businessDates[analysisDay] ?? null;
+  }, [analysisDay, live.businessDates]);
   const effectiveScoringDay = useMemo(
     () => (live.scoringReturns || live.returns ? getEffectiveScoringDay(live, similarityAssets) : null),
     [live, similarityAssets],
@@ -146,6 +153,7 @@ export function LiveConfigTab() {
         levels,
         scoringReturns,
         scoringLevels,
+        analysisDayN: null,
         dayN: data.dayN,
         tradingDayN: data.tradingDayN ?? null,
         triggerPctile: data.triggerZScore ?? null,
@@ -215,6 +223,7 @@ export function LiveConfigTab() {
       levels: mockLevels,
       scoringReturns: mockReturns,
       scoringLevels: mockLevels,
+      analysisDayN: null,
       dayN: 25,
       tradingDayN: 25,
       triggerPctile: 0.8,
@@ -457,15 +466,61 @@ export function LiveConfigTab() {
           <div className="grid grid-cols-5 gap-3 text-[10px] text-[#6a6a7a]">
             <div>Day+{live.dayN}</div>
             <div>Trading D+{live.tradingDayN ?? '--'}</div>
+            <div>Analysis D+{analysisDay}</div>
             <div>Effective D+{effectiveScoringDay ?? '--'}</div>
             <div>{Object.keys(live.returns || {}).length} assets</div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-[10px] text-[#6a6a7a] mt-2">
             <div>{TRIGGER_ASSET}: ${live.trigger?.toFixed(2)}</div>
+            <div>Analysis date: {analysisDate || effectiveScoringDate || '--'}</div>
           </div>
           {liveAnchorNote && (
             <div className="mt-2 text-[10px] text-[#ffab40]">
               {liveAnchorNote}
             </div>
           )}
+          <div className="mt-3 p-3 border border-[#1a1a2e] bg-[#05050a]">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-[#4a4a5a]">Analysis Day Override</div>
+                <div className="text-[10px] text-[#6a6a7a] mt-1">
+                  Pretend the live event is only at an earlier day without re-pulling data.
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={analysisOverrideEnabled}
+                    onChange={(event) => setLive({ analysisDayN: event.target.checked ? maxAnalysisDay : null })}
+                    className="w-3 h-3 accent-[#ffab40]"
+                  />
+                  <span className="text-[10px] text-[#ffab40]">Enable override</span>
+                </label>
+                {analysisOverrideEnabled && (
+                  <Button size="xs" variant="ghost" onClick={() => setLive({ analysisDayN: null })}>
+                    Use latest
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-4 flex-wrap">
+              <SliderControl
+                label="Day"
+                value={analysisDay}
+                onChange={(value) => setLive({ analysisDayN: Math.min(Math.max(value, 0), maxAnalysisDay) })}
+                min={0}
+                max={Math.max(maxAnalysisDay, 1)}
+                step={1}
+                suffix="d"
+              />
+              <div className="text-[10px] text-[#6a6a7a]">
+                {analysisOverrideEnabled
+                  ? `Override active: scoring behaves as if we are only at D+${analysisDay}${analysisDate ? ` (${analysisDate})` : ''}.`
+                  : `Latest live basis remains D+${maxAnalysisDay}${effectiveScoringDate ? ` (${effectiveScoringDate})` : ''}.`}
+              </div>
+            </div>
+          </div>
           <div className="grid grid-cols-3 gap-3 text-[10px] text-[#6a6a7a] mt-2">
             <div>Mode: {live.requestMode || (provenance.liveSource === 'demo' ? 'demo' : '--')}</div>
             <div>Score date: {effectiveScoringDate || '--'}</div>

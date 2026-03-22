@@ -4,7 +4,7 @@ import { useMemo, useCallback } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Button, SliderControl, StatBox, EmptyState, Badge } from '@/components/ui/ChartCard';
 import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
-import { runAnalogueMatch, selectEvents } from '@/engine/similarity';
+import { filterScoresByActiveEvents, runAnalogueMatch, selectEvents } from '@/engine/similarity';
 
 export function AnaloguesTab() {
   const {
@@ -12,6 +12,7 @@ export function AnaloguesTab() {
     events,
     eventTags,
     macroContext,
+    activeEvents,
     live,
     scores,
     setScores,
@@ -27,9 +28,17 @@ export function AnaloguesTab() {
   const scoringDate = live.scoringReturns || live.returns ? getEffectiveScoringDate(live, similarityAssets) : null;
   const scoringReturns = live.scoringReturns ?? live.returns;
   const hasLive = scoringReturns !== null && scoringDayN !== null;
+  const activeEventDefs = useMemo(
+    () => events.filter((event) => activeEvents.has(event.name)),
+    [activeEvents, events],
+  );
+  const activeScores = useMemo(
+    () => filterScoresByActiveEvents(scores, activeEvents),
+    [activeEvents, scores],
+  );
 
   const handleMatch = useCallback(() => {
-    if (!scoringReturns || scoringDayN === null) return;
+    if (!scoringReturns || scoringDayN === null || activeEventDefs.length === 0) return;
     const result = runAnalogueMatch(
       eventReturns,
       scoringReturns,
@@ -42,36 +51,36 @@ export function AnaloguesTab() {
       {
         weights: analogueWeights,
         simAssets: similarityAssets,
-        events,
+        events: activeEventDefs,
         eventTags,
         macroContext,
       }
     );
     setScores(result);
-  }, [analogueWeights, eventReturns, eventTags, events, live.cpi, live.fed, live.tags, live.triggerZScore, macroContext, scoringDayN, scoringReturns, setScores, triggerZScores]);
+  }, [activeEventDefs, analogueWeights, eventReturns, eventTags, live.cpi, live.fed, live.tags, live.triggerZScore, macroContext, scoringDayN, scoringReturns, setScores, similarityAssets, triggerZScores]);
 
-  const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
+  const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
 
   const stats = useMemo(() => {
-    if (scores.length === 0) return { topScore: 0, avgScore: 0, selected: 0 };
-    const composites = scores.map((score) => score.composite);
+    if (activeScores.length === 0) return { topScore: 0, avgScore: 0, selected: 0 };
+    const composites = activeScores.map((score) => score.composite);
     return {
       topScore: Math.max(...composites),
       avgScore: composites.reduce((sum, value) => sum + value, 0) / composites.length,
       selected: selectedEvents.length,
     };
-  }, [scores, selectedEvents.length]);
+  }, [activeScores, selectedEvents.length]);
 
   return (
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title="Analogue Matching"
-        subtitle={`${scores.length} events scored | scoring D+${scoringDayN ?? 0}${scoringDate ? ` (${scoringDate})` : ''} | weighted scoring`}
+        subtitle={`${activeScores.length} active events scored | scoring D+${scoringDayN ?? 0}${scoringDate ? ` (${scoringDate})` : ''} | weighted scoring`}
         controls={
           <div className="flex items-center gap-3">
             <SliderControl label="Cutoff" value={scoreCutoff} onChange={setCutoff} min={0} max={1} step={0.05} />
-            <Button onClick={handleMatch} disabled={!hasLive}>
-              {scores.length > 0 ? 'Re-score' : 'Run'}
+            <Button onClick={handleMatch} disabled={!hasLive || activeEventDefs.length === 0}>
+              {activeScores.length > 0 ? 'Re-score' : 'Run'}
             </Button>
           </div>
         }
@@ -94,7 +103,7 @@ export function AnaloguesTab() {
                 color={stats.topScore >= 0.7 ? '#69f0ae' : stats.topScore >= 0.5 ? '#ffd740' : '#ff5252'}
               />
               <StatBox label="Avg Score" value={`${(stats.avgScore * 100).toFixed(0)}%`} color="#00d4aa" />
-              <StatBox label="Selected" value={stats.selected} sub={`of ${scores.length} total`} color="#ffffff" />
+              <StatBox label="Selected" value={stats.selected} sub={`of ${activeScores.length} active`} color="#ffffff" />
             </div>
 
             <div className="px-4 grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -128,11 +137,11 @@ export function AnaloguesTab() {
               Weights auto-normalize to 1.00 and feed the composite score directly. Matching pool: {similarityAssets.length} assets.
             </div>
 
-            {scores.length === 0 ? (
+            {activeScores.length === 0 ? (
               <EmptyState title="Ready to Score" message={`Click "Run" to find analogues matching ${live.name}.`} />
             ) : (
               <div className="px-4 pb-4 space-y-2 max-h-[440px] overflow-y-auto">
-                {scores.map((score, index) => {
+                {activeScores.map((score, index) => {
                   const selected = score.composite >= scoreCutoff;
                   const quantContribution = score.quant * analogueWeights.quant;
                   const tagContribution = score.tag * analogueWeights.tag;
@@ -178,7 +187,7 @@ export function AnaloguesTab() {
               <div>
                 Weights: Q x {analogueWeights.quant.toFixed(2)} | T x {analogueWeights.tag.toFixed(2)} | M x {analogueWeights.macro.toFixed(2)}
               </div>
-              <div>{selectedEvents.length} of {scores.length} events above cutoff threshold</div>
+              <div>{selectedEvents.length} of {activeScores.length} active events above cutoff threshold</div>
             </div>
           </div>
         )}

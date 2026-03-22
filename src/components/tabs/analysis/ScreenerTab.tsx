@@ -5,7 +5,7 @@ import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, SliderControl } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel, unitLabel } from '@/engine/returns';
 import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
-import { selectEvents } from '@/engine/similarity';
+import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import { nanMedian, nanStd } from '@/lib/math';
 import { CUSTOM_GROUPS } from '@/config/assets';
 
@@ -27,13 +27,14 @@ interface ScreenerRow {
 }
 
 export function ScreenerTab() {
-  const { eventReturns, assetMeta, allLabels, scores, scoreCutoff, horizon, live } = useDashboard();
+  const { eventReturns, assetMeta, allLabels, scores, scoreCutoff, horizon, live, activeEvents } = useDashboard();
   const [group, setGroup] = useState('— All Assets —');
   const [minHitPct, setMinHitPct] = useState(60);
   const [minCovPct, setMinCovPct] = useState(50);
   const [minRR, setMinRR] = useState(0.8);
 
-  const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
+  const activeScores = useMemo(() => filterScoresByActiveEvents(scores, activeEvents), [activeEvents, scores]);
+  const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
 
   const labels = useMemo(() => {
     if (group === '— All Assets —') return allLabels;

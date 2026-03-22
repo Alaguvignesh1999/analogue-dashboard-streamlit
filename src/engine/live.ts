@@ -3,6 +3,7 @@ export interface LiveSeriesStateLike {
   scoringReturns?: Record<string, Record<number, number>> | null;
   levels?: Record<string, Record<number, number>> | null;
   scoringLevels?: Record<string, Record<number, number>> | null;
+  analysisDayN?: number | null;
   dayN: number | null;
   tradingDayN?: number | null;
   businessDates?: string[];
@@ -14,7 +15,9 @@ export function getLiveScoringReturns(live: LiveSeriesStateLike): Record<string,
 }
 
 export function getLiveScoringDay(live: LiveSeriesStateLike): number {
-  return live.tradingDayN ?? live.dayN ?? 0;
+  const latestAvailableDay = live.tradingDayN ?? live.dayN ?? 0;
+  const requestedDay = live.analysisDayN ?? latestAvailableDay;
+  return Math.max(0, Math.min(requestedDay, latestAvailableDay));
 }
 
 export function getLiveScoringLevels(live: LiveSeriesStateLike): Record<string, Record<number, number>> | null {

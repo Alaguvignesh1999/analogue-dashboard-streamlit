@@ -1,5 +1,4 @@
 import { cosine } from '@/lib/math';
-import { EVENTS } from '@/config/events';
 import { SIMILARITY_ASSET_POOL } from '@/config/engine';
 import { EventReturns } from './returns';
 import { getSeriesPointAtOrBefore } from './live';
@@ -35,6 +34,7 @@ export function decayScoresAt(
   eventReturns: EventReturns,
   liveReturns: Record<string, Record<number, number>>,
   dnTarget: number,
+  eventNames: string[],
   simAssets?: string[],
 ): { event: string; score: number }[] {
   const livePool = (simAssets || SIMILARITY_ASSET_POOL).filter(
@@ -46,10 +46,10 @@ export function decayScoresAt(
   const livePath = pathVecAt(liveReturns, livePool, dnTarget);
   const scores: { event: string; score: number }[] = [];
 
-  for (const event of EVENTS) {
+  for (const eventName of eventNames) {
     const histDict: Record<string, Record<number, number>> = {};
     for (const asset of livePool) {
-      const hist = eventReturns[asset]?.[event.name];
+      const hist = eventReturns[asset]?.[eventName];
       if (hist && Object.keys(hist).length > 0) {
         histDict[asset] = hist;
       }
@@ -57,7 +57,7 @@ export function decayScoresAt(
 
     const histPath = pathVecAt(histDict, livePool, dnTarget);
     const score = (cosine(livePath, histPath) + 1) / 2;
-    scores.push({ event: event.name, score });
+    scores.push({ event: eventName, score });
   }
 
   scores.sort((left, right) => right.score - left.score);
@@ -68,13 +68,14 @@ export function buildDecayTimeline(
   eventReturns: EventReturns,
   liveReturns: Record<string, Record<number, number>>,
   maxDn: number,
+  eventNames: string[],
   step = 1,
   simAssets?: string[],
 ): DecayPoint[] {
   const timeline: DecayPoint[] = [];
 
   for (let dn = 0; dn <= maxDn; dn += Math.max(step, 1)) {
-    const scores = decayScoresAt(eventReturns, liveReturns, dn, simAssets);
+    const scores = decayScoresAt(eventReturns, liveReturns, dn, eventNames, simAssets);
     timeline.push({
       offset: dn,
       scores,

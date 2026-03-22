@@ -5,7 +5,7 @@ import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, StatBox, Badge } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel, unitLabel } from '@/engine/returns';
 import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveReturnPointAtOrBefore, getLiveScoringReturns } from '@/engine/live';
-import { selectEvents } from '@/engine/similarity';
+import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import { nanMean, nanMedian, nanStd, nanPercentile, nanMin, nanMax } from '@/lib/math';
 import { fmtReturn, stars, entrySignal } from '@/lib/format';
 import {
@@ -18,7 +18,7 @@ const AX_LINE = '#2a2a3a';
 const GRID_CLR = '#1e1e22';
 
 export function DetailTab() {
-  const { eventReturns, assetMeta, allClasses, scores, scoreCutoff, horizon, live } = useDashboard();
+  const { eventReturns, assetMeta, allClasses, scores, scoreCutoff, horizon, live, activeEvents } = useDashboard();
 
   const [selectedClass, setSelectedClass] = useState('Oil & Energy');
   const [selectedAsset, setSelectedAsset] = useState('Brent Futures');
@@ -34,7 +34,8 @@ export function DetailTab() {
     }
   }, [classAssets, selectedAsset]);
 
-  const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
+  const activeScores = useMemo(() => filterScoresByActiveEvents(scores, activeEvents), [activeEvents, scores]);
+  const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
   const scoringReturns = getLiveScoringReturns(live);
   const dayN = getEffectiveScoringDay(live, [selectedAsset]);
   const effectiveDate = getEffectiveScoringDate(live, [selectedAsset]);

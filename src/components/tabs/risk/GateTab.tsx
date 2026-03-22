@@ -11,7 +11,7 @@ import {
   getLiveScoringReturns,
   getLiveReturnPointAtOrBefore,
 } from '@/engine/live';
-import { selectEvents } from '@/engine/similarity';
+import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import { nanMedian, nanPercentile } from '@/lib/math';
 import { entrySignal, fmtReturn } from '@/lib/format';
 
@@ -28,9 +28,10 @@ function formatTarget(entryLevel: number | null, move: number, isRates: boolean)
 }
 
 export function GateTab() {
-  const { eventReturns, assetMeta, allLabels, scores, scoreCutoff, horizon, live } = useDashboard();
+  const { eventReturns, assetMeta, allLabels, scores, scoreCutoff, horizon, live, activeEvents } = useDashboard();
 
-  const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
+  const activeScores = useMemo(() => filterScoresByActiveEvents(scores, activeEvents), [activeEvents, scores]);
+  const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
   const scoringReturns = getLiveScoringReturns(live);
   const dayN = getEffectiveScoringDay(live, allLabels);
   const effectiveDate = getEffectiveScoringDate(live, allLabels);

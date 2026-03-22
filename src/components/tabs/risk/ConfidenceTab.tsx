@@ -5,7 +5,7 @@ import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, StatBox, Badge } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel, unitLabel } from '@/engine/returns';
 import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
-import { selectEvents } from '@/engine/similarity';
+import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import { KELLY_FRACTION, RISK_BUDGET_USD } from '@/config/engine';
 import { CUSTOM_GROUPS } from '@/config/assets';
 import { nanMean, nanMedian, nanStd, nanPercentile } from '@/lib/math';
@@ -31,10 +31,11 @@ function bootstrapStats(values: number[], numSamples = 500) {
 }
 
 export function ConfidenceTab() {
-  const { eventReturns, assetMeta, scores, scoreCutoff, horizon, live } = useDashboard();
+  const { eventReturns, assetMeta, scores, scoreCutoff, horizon, live, activeEvents } = useDashboard();
   const [group, setGroup] = useState(Object.keys(CUSTOM_GROUPS)[0] || 'Equities');
 
-  const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
+  const activeScores = useMemo(() => filterScoresByActiveEvents(scores, activeEvents), [activeEvents, scores]);
+  const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
   const labels = useMemo(() => CUSTOM_GROUPS[group] || [], [group]);
   const dayN = getEffectiveScoringDay(live, labels);
   const effectiveDate = getEffectiveScoringDate(live, labels);

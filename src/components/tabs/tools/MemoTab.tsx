@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Button } from '@/components/ui/ChartCard';
-import { selectEvents } from '@/engine/similarity';
+import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import { poiRet, displayLabel } from '@/engine/returns';
 import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
 import { SIMILARITY_ASSET_POOL } from '@/config/engine';
@@ -11,11 +11,12 @@ import { nanMean, nanStd, nanMin, nanMax, nanPercentile } from '@/lib/math';
 import { fmtReturn, stars } from '@/lib/format';
 
 export function MemoTab() {
-  const { eventReturns, assetMeta, scores, scoreCutoff, horizon, live } = useDashboard();
+  const { eventReturns, assetMeta, scores, scoreCutoff, horizon, live, activeEvents } = useDashboard();
   const [memoText, setMemoText] = useState('');
   const [copied, setCopied] = useState(false);
 
-  const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
+  const activeScores = useMemo(() => filterScoresByActiveEvents(scores, activeEvents), [activeEvents, scores]);
+  const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
   const memoAssets = useMemo(
     () => SIMILARITY_ASSET_POOL.filter((asset) => assetMeta[asset]),
     [assetMeta],
@@ -33,11 +34,11 @@ export function MemoTab() {
     lines.push(`- Requested Day 0: ${live.day0 || '--'}`);
     lines.push(`- Effective scoring day: D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''}`);
     lines.push(`- Horizon: D+${dayN} to D+${dayN + horizon}`);
-    lines.push(`- Analogues selected: ${selectedEvents.length} of ${scores.length} (cutoff ${scoreCutoff.toFixed(2)})`);
+    lines.push(`- Analogues selected: ${selectedEvents.length} of ${activeScores.length} active events (cutoff ${scoreCutoff.toFixed(2)})`);
     lines.push('');
 
     lines.push('## Top Analogues');
-    const sortedScores = [...scores].sort((left, right) => right.composite - left.composite).slice(0, 8);
+    const sortedScores = [...activeScores].sort((left, right) => right.composite - left.composite).slice(0, 8);
     for (const score of sortedScores) {
       const selected = score.composite >= scoreCutoff ? '[selected]' : '[watch]';
       lines.push(
@@ -98,7 +99,7 @@ export function MemoTab() {
     lines.push(`- Provenance: ${live.requestMode || (live.returns ? 'loaded live' : 'none')}${live.snapshotDate ? `, snapshot ${live.snapshotDate}` : ''}`);
 
     setMemoText(lines.join('\n'));
-  }, [assetMeta, dayN, effectiveDate, eventReturns, horizon, live.day0, live.name, live.requestMode, live.returns, live.snapshotDate, scoreCutoff, scores, selectedEvents, memoAssets]);
+  }, [activeScores, assetMeta, dayN, effectiveDate, eventReturns, horizon, live.day0, live.name, live.requestMode, live.returns, live.snapshotDate, scoreCutoff, selectedEvents, memoAssets]);
 
   const copyToClipboard = useCallback(() => {
     navigator.clipboard.writeText(memoText).then(() => {

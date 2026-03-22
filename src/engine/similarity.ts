@@ -180,6 +180,13 @@ export function selectEvents(scores: AnalogueScore[], cutoff: number): string[] 
   return selected.length > 0 ? selected : scores.map((score) => score.event);
 }
 
+export function filterScoresByActiveEvents(
+  scores: AnalogueScore[],
+  activeEvents: Set<string>,
+): AnalogueScore[] {
+  return scores.filter((score) => activeEvents.has(score.event));
+}
+
 export function compositeReturn(
   eventReturns: EventReturns,
   label: string,

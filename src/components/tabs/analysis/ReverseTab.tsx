@@ -14,10 +14,14 @@ interface ReverseMatch {
 }
 
 export function ReverseTab() {
-  const { eventReturns, eventTags, macroContext, triggerZScores, similarityAssets, live, events } = useDashboard();
+  const { eventReturns, eventTags, macroContext, triggerZScores, similarityAssets, live, events, activeEvents } = useDashboard();
   const scoringReturns = getLiveScoringReturns(live);
   const scoringDayN = scoringReturns ? getEffectiveScoringDay(live, similarityAssets) : 0;
   const scoringDate = scoringReturns ? getEffectiveScoringDate(live, similarityAssets) : null;
+  const activeEventDefs = useMemo(
+    () => events.filter((event) => activeEvents.has(event.name)),
+    [activeEvents, events],
+  );
 
   const [topN, setTopN] = useState<number>(5);
 
@@ -33,15 +37,15 @@ export function ReverseTab() {
       live.triggerZScore,
       live.cpi,
       live.fed,
-      scoringDayN,
-      triggerZScores,
-      {
-        weights: { quant: 1, tag: 0, macro: 0 },
-        simAssets: similarityAssets,
-        events,
-        eventTags,
-        macroContext,
-      },
+        scoringDayN,
+        triggerZScores,
+        {
+          weights: { quant: 1, tag: 0, macro: 0 },
+          simAssets: similarityAssets,
+          events: activeEventDefs,
+          eventTags,
+          macroContext,
+        },
     );
 
     const results: ReverseMatch[] = scores.map((score) => ({
@@ -62,7 +66,7 @@ export function ReverseTab() {
         topEvent: topResults.length > 0 ? topResults[0].eventName : '',
       },
     };
-  }, [eventReturns, eventTags, events, live.cpi, live.fed, live.tags, live.triggerZScore, macroContext, scoringDayN, scoringReturns, similarityAssets, topN, triggerZScores]);
+  }, [activeEventDefs, eventReturns, eventTags, live.cpi, live.fed, live.tags, live.triggerZScore, macroContext, scoringDayN, scoringReturns, similarityAssets, topN, triggerZScores]);
 
   const topNOptions = Array.from({ length: 11 }, (_, index) => {
     const value = 3 + index;
@@ -96,7 +100,7 @@ export function ReverseTab() {
             options={topNOptions}
           />
           <div className="text-2xs text-text-dim">
-            Matching {Object.keys(eventReturns).length} historical events
+            Matching {activeEventDefs.length} active historical events
           </div>
         </div>
 

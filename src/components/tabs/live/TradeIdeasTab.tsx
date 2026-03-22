@@ -5,7 +5,7 @@ import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel, unitLabel } from '@/engine/returns';
 import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveReturnPointAtOrBefore, getLiveScoringReturns } from '@/engine/live';
-import { selectEvents } from '@/engine/similarity';
+import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import { nanMedian, nanMean, nanStd, nanPercentile } from '@/lib/math';
 import { stars, statusFromPctile, fmtReturn } from '@/lib/format';
 import { CUSTOM_GROUPS } from '@/config/assets';
@@ -145,11 +145,13 @@ export function TradeIdeasTab() {
     scoreCutoff,
     horizon,
     live,
+    activeEvents,
   } = useDashboard();
 
   const [group, setGroup] = useState('-- All Assets --');
 
-  const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
+  const activeScores = useMemo(() => filterScoresByActiveEvents(scores, activeEvents), [activeEvents, scores]);
+  const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
   const scoringReturns = getLiveScoringReturns(live);
 
   const labels = useMemo(() => {

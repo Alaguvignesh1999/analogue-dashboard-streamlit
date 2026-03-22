@@ -5,7 +5,7 @@ import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, StatBox, Button } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel } from '@/engine/returns';
 import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
-import { selectEvents } from '@/engine/similarity';
+import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import { PORTFOLIO_SCENARIOS } from '@/config/engine';
 import { nanMean, nanMedian, nanMin, nanMax, nanPercentile } from '@/lib/math';
 import { fmtDollar } from '@/lib/format';
@@ -29,11 +29,12 @@ function scenarioToPositions(name: string): PortfolioPosition[] {
 }
 
 export function StressTab() {
-  const { eventReturns, assetMeta, scores, scoreCutoff, horizon, live, allLabels } = useDashboard();
+  const { eventReturns, assetMeta, scores, scoreCutoff, horizon, live, allLabels, activeEvents } = useDashboard();
   const [scenarioName, setScenarioName] = useState('Geopolitical Long');
   const [positions, setPositions] = useState<PortfolioPosition[]>(() => scenarioToPositions('Geopolitical Long'));
 
-  const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
+  const activeScores = useMemo(() => filterScoresByActiveEvents(scores, activeEvents), [activeEvents, scores]);
+  const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
   const positionLabels = useMemo(() => positions.map((position) => position.asset), [positions]);
   const dayN = getEffectiveScoringDay(live, positionLabels);
   const effectiveDate = getEffectiveScoringDate(live, positionLabels);
