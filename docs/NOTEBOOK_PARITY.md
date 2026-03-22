@@ -6,7 +6,7 @@ The original notebook remains the reference for intended analytics behavior, but
 
 Notebook source used during parity work:
 
-- [ME_Dashboard_Clean_12.ipynb](C:/Users/vigne/Downloads/Telegram%20Desktop/ME_Dashboard_Clean_12.ipynb)
+- `ME_Dashboard_Clean_12.ipynb`
 
 ## Intentional Improvements Over Notebook
 
@@ -53,7 +53,7 @@ The web app keeps that capability, but safely:
 
 The main parity checks are:
 
-- [`scripts/live_parity_check.py`](C:/Users/vigne/Downloads/analogue-dashboard-clean/scripts/live_parity_check.py)
-- [`scripts/data_integrity_check.py`](C:/Users/vigne/Downloads/analogue-dashboard-clean/scripts/data_integrity_check.py)
-- [`scripts/gate_regression_check.py`](C:/Users/vigne/Downloads/analogue-dashboard-clean/scripts/gate_regression_check.py)
-- [`scripts/live_snapshot_check.py`](C:/Users/vigne/Downloads/analogue-dashboard-clean/scripts/live_snapshot_check.py)
+- `scripts/live_parity_check.py`
+- `scripts/data_integrity_check.py`
+- `scripts/gate_regression_check.py`
+- `scripts/live_snapshot_check.py`

@@ -119,9 +119,10 @@ vercel deploy --prod -y
 
 ## Documentation
 
-- [Architecture](C:/Users/vigne/Downloads/analogue-dashboard-clean/docs/ARCHITECTURE.md)
-- [Operations](C:/Users/vigne/Downloads/analogue-dashboard-clean/docs/OPERATIONS.md)
-- [Changelog](C:/Users/vigne/Downloads/analogue-dashboard-clean/CHANGELOG.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Operations](docs/OPERATIONS.md)
+- [Notebook Parity Notes](docs/NOTEBOOK_PARITY.md)
+- [Changelog](CHANGELOG.md)
 
 ## Important Operational Notes
 
