@@ -220,6 +220,10 @@ export function CrossAssetTab() {
           </div>
         }
       >
+        <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
+          Asset selection persists independently of the group browser, so you can browse one group without losing assets already chosen from another. All series are anchored to Day 0 for the selected event; if units differ across assets, treat the chart as a visual relative comparison rather than a like-for-like magnitude comparison.
+        </div>
+
         <div className="p-4 border-b border-border/40 space-y-3">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">

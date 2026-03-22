@@ -82,11 +82,11 @@ export function CorrelationTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title="Correlation Matrix"
-        subtitle={`${labels.length} assets · ${activeEventNames.length} events · ${validCellCount} valid pairwise cells`}
+        subtitle={`${labels.length} assets | ${activeEventNames.length} events | ${validCellCount} valid pairwise cells`}
         controls={<Select label="Group" value={group} onChange={setGroup} options={groupOptions} />}
       >
         <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-          Correlations are now built only from overlapping valid historical observations across the active event set and the selected post-event window. Missing values are ignored, not zero-filled, so blank cells mean insufficient overlap rather than fake neutrality.
+          Correlations are built only from overlapping valid historical observations across the active event set and the selected post-event window. Missing values are ignored, not zero-filled, so blank cells mean insufficient overlap rather than fake neutrality.
         </div>
 
         <div className="px-4 py-2 flex gap-4 border-b border-border/40 flex-wrap">
@@ -126,7 +126,7 @@ export function CorrelationTab() {
                       style={{ backgroundColor: corrColor(cell.corr) }}
                       title={`${displayLabel(assetMeta[cell.assetA], cell.assetA)} vs ${displayLabel(assetMeta[cell.assetB], cell.assetB)} | corr ${Number.isNaN(cell.corr) ? 'N/A' : cell.corr.toFixed(3)} | overlap ${cell.overlap}`}
                     >
-                      <div>{Number.isNaN(cell.corr) ? '—' : cell.corr.toFixed(2)}</div>
+                      <div>{Number.isNaN(cell.corr) ? '--' : cell.corr.toFixed(2)}</div>
                       <div className="text-[7px] text-text-dim">{cell.overlap}</div>
                     </div>
                   ))}

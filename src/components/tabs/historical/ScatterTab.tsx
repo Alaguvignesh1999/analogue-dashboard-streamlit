@@ -136,6 +136,10 @@ export function ScatterTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard title="Regime Scatter" subtitle="Asset selectors now use the full validated asset universe.">
         <div className="space-y-4 p-4 border-b border-border/40">
+          <div className="text-2xs text-text-dim border border-border/40 bg-bg-cell/20 px-3 py-2">
+            Use this to test whether two assets tend to move together at the chosen POI across the active event set. Step Mode converts both axes into moves from a chosen entry day instead of absolute event-window values. R2 measures how tightly the points cluster around the fitted line; it does not imply causality.
+          </div>
+
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <Select
               label="X"

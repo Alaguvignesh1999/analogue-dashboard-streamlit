@@ -136,7 +136,8 @@ export function GateTab() {
     >
       <div className="px-4 pt-4 text-2xs text-text-dim space-y-1">
         <div>Gate logic uses the latest valid live return and level on or before the effective scoring day for each asset.</div>
-        <div>Legend: `ENTER` &lt;33rd pctile, `HALF` 33-66th, `LATE` 66-85th, `SKIP` &gt;=85th. `N/A` only appears with a concrete missing-data reason.</div>
+        <div>Entry is the resolved live level used for the gate. TP and SL show absolute target levels with the implied move in brackets.</div>
+        <div>Legend: ENTER &lt;33rd pctile, HALF 33-66th, LATE 66-85th, SKIP &gt;=85th. N/A only appears with a concrete missing-data reason.</div>
       </div>
       <div className="overflow-x-auto px-4 pb-4">
         <table className="w-full border-collapse text-2xs font-mono">
@@ -206,7 +207,7 @@ export function GateTab() {
                     {row.n}/{row.nTotal}
                   </td>
                   <td className="px-2 py-1 text-left text-text-dim border-b border-border/30 whitespace-nowrap">
-                    {row.gate.label === 'N/A' ? row.missingReason || 'Insufficient data' : '—'}
+                    {row.gate.label === 'N/A' ? row.missingReason || 'Insufficient data' : '--'}
                   </td>
                 </tr>
               ))

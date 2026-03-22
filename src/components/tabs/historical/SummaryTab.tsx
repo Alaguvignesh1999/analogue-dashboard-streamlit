@@ -77,6 +77,10 @@ export function SummaryTab() {
         subtitle={`Mean +/- Std across ${activeEventNames.length} valid events`}
         controls={<Select value={group} onChange={setGroup} options={groupOptions} />}
       >
+        <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
+          Each cell shows the mean and standard deviation for that asset at that POI across the active event set. Pre-inception and otherwise invalid event rows are excluded before aggregation. Blank cells mean there were too few valid observations to trust the summary.
+        </div>
+
         <div className="overflow-x-auto border-t border-border/40">
           <table className="w-full border-collapse text-2xs font-mono">
             <thead>

@@ -187,6 +187,9 @@ export function EventsTab() {
             <div className="text-2xs text-text-dim">
               Historical coverage: {coverage.startDate || '--'} to {coverage.endDate || '--'} | Stored locally in this browser only
             </div>
+            <div className="text-2xs text-text-dim">
+              Custom events and exact-date overrides do not change shared GitHub or Vercel data. The chosen calendar date is always resolved to the latest trading day on or before that date before returns are recomputed.
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <input
                 value={customName}

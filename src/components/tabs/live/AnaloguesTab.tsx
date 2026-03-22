@@ -83,6 +83,10 @@ export function AnaloguesTab() {
           />
         ) : (
           <div className="space-y-4">
+            <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
+              Quant compares the live return path against historical event paths at the effective scoring day. Tag and macro scores are then blended in using the normalized weights below. The stacked bar on each row shows how much each component contributes to the final composite score.
+            </div>
+
             <div className="px-4 pt-4 grid grid-cols-3 gap-3">
               <StatBox
                 label="Top Score"

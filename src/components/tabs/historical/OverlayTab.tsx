@@ -236,6 +236,10 @@ export function OverlayTab() {
         </div>
       }
     >
+      <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
+        Day 0 mode rebases every series at the event anchor. Step-In mode rebases at the chosen entry day so you can compare paths from a delayed entry. Sparse historical events only plot at POI checkpoints, and the orange live line uses the currently loaded live event on the same rebasing rule.
+      </div>
+
       <div className="flex">
         <div className="flex-1 h-[560px] pt-1 pr-1 pb-2 pl-1">
           <ResponsiveContainer width="100%" height="100%">

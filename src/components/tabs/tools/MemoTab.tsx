@@ -111,6 +111,10 @@ export function MemoTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard title="Trade Memo" subtitle="Auto-generated summary from the current analogue state and effective live scoring basis">
         <div className="p-4 space-y-4">
+          <div className="text-2xs text-text-dim border border-border/40 bg-bg-cell/20 px-3 py-2">
+            The memo reflects the current app state exactly as loaded: shared live snapshot, private scenario, or demo mode. It is meant as a shareable summary, not a separate calculation path, so its provenance should match the live status shown elsewhere in the dashboard.
+          </div>
+
           <div className="flex gap-2">
             <Button onClick={generateMemo} size="sm">Generate Memo</Button>
             {memoText && (
