@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, SliderControl, EmptyState } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel, unitLabel, eventDateMap, isAssetAvailableForEvent } from '@/engine/returns';
+import { getSeriesPointAtOrBefore } from '@/engine/live';
 import { POIS, PRE_WINDOW_TD, POST_WINDOW_TD } from '@/config/engine';
 import {
   ScatterChart,
@@ -72,11 +73,16 @@ export function ScatterTab() {
     }
 
     if (live.returns && live.dayN !== null) {
-      const xLive = live.returns[xAsset]?.[live.dayN];
-      const yLive = live.returns[yAsset]?.[live.dayN];
-      if (xLive !== undefined && yLive !== undefined) {
-        const adjustedX = stepMode ? xLive - (live.returns[xAsset]?.[stepDay] || 0) : xLive;
-        const adjustedY = stepMode ? yLive - (live.returns[yAsset]?.[stepDay] || 0) : yLive;
+      const xLivePoint = getSeriesPointAtOrBefore(live.returns[xAsset], live.dayN);
+      const yLivePoint = getSeriesPointAtOrBefore(live.returns[yAsset], live.dayN);
+      if (xLivePoint && yLivePoint) {
+        const xBasePoint = stepMode ? getSeriesPointAtOrBefore(live.returns[xAsset], stepDay) : null;
+        const yBasePoint = stepMode ? getSeriesPointAtOrBefore(live.returns[yAsset], stepDay) : null;
+        if (stepMode && (!xBasePoint || !yBasePoint)) {
+          return points;
+        }
+        const adjustedX = stepMode ? xLivePoint.value - xBasePoint!.value : xLivePoint.value;
+        const adjustedY = stepMode ? yLivePoint.value - yBasePoint!.value : yLivePoint.value;
         points.push({ x: adjustedX, y: adjustedY, event: live.name, isLive: true });
       }
     }

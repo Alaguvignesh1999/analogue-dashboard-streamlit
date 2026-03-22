@@ -29,8 +29,8 @@ export function MemoTab() {
     lines.push('# Trade Memo');
     lines.push('');
     lines.push('## Event Context');
-    lines.push(`- Live event: ${live.name || 'N/A'}`);
-    lines.push(`- Requested Day 0: ${live.day0 || 'N/A'}`);
+    lines.push(`- Live event: ${live.name || '--'}`);
+    lines.push(`- Requested Day 0: ${live.day0 || '--'}`);
     lines.push(`- Effective scoring day: D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''}`);
     lines.push(`- Horizon: D+${dayN} to D+${dayN + horizon}`);
     lines.push(`- Analogues selected: ${selectedEvents.length} of ${scores.length} (cutoff ${scoreCutoff.toFixed(2)})`);

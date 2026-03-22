@@ -71,7 +71,7 @@ export function DecayTab() {
     <div className="space-y-4 p-4">
       <ChartCard
         title="Signal Decay Tracker"
-        subtitle={`Day 0 -> effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} · same sim-asset basis as analogue matching`}
+        subtitle={`Day 0 -> effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} | same sim-asset basis as analogue matching`}
         controls={
           <div className="flex items-center gap-3">
             <SliderControl label="Step" value={step} onChange={setStep} min={1} max={5} suffix="d" />
@@ -87,6 +87,9 @@ export function DecayTab() {
           </div>
         ) : (
           <div className="space-y-2">
+            <div className="px-4 pt-2 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
+              Missing path observations are skipped instead of treated as zero, so decay changes reflect real overlap in the live and historical series rather than fabricated neutrality.
+            </div>
             <div className="px-4 pt-2">
               <span className="text-2xs text-text-muted">Path similarity score over time on the same selected live sim asset set.</span>
             </div>

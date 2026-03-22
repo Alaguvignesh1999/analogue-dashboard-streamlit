@@ -15,7 +15,7 @@ function pathVecAt(
   assets: string[],
   dn: number,
 ): number[] {
-  if (dn < 0) return new Array(assets.length).fill(0);
+  if (dn < 0) return [];
 
   const offsets = Array.from({ length: dn + 1 }, (_, i) => i);
   const vecs: number[] = [];
@@ -24,7 +24,7 @@ function pathVecAt(
     const series = returnsDict[asset] || {};
     for (const offset of offsets) {
       const point = getSeriesPointAtOrBefore(series, offset);
-      vecs.push(point ? point.value : 0);
+      vecs.push(point ? point.value : Number.NaN);
     }
   }
 
@@ -88,20 +88,20 @@ export function buildDecayTimeline(
 export function eventScoreTimeline(
   timeline: DecayPoint[],
   eventName: string,
-): [number, number][] {
+): [number, number | null][] {
   return timeline.map((point) => {
     const score = point.scores.find((item) => item.event === eventName);
-    return [point.offset, score?.score ?? 0] as [number, number];
+    return [point.offset, score?.score ?? null] as [number, number | null];
   });
 }
 
 export function eventRankTimeline(
   timeline: DecayPoint[],
   eventName: string,
-): [number, number][] {
+): [number, number | null][] {
   return timeline.map((point) => {
     const rank = point.scores.findIndex((item) => item.event === eventName) + 1;
-    return [point.offset, rank || point.scores.length] as [number, number];
+    return [point.offset, rank || null] as [number, number | null];
   });
 }
 
