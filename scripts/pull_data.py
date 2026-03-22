@@ -360,6 +360,34 @@ def build_availability(prices_df):
     return availability
 
 
+def build_observed_indices(full_idx, raw_yf, raw_fred, asset_order, meta):
+    position_map = {ts: idx for idx, ts in enumerate(full_idx)}
+    observed = {}
+    for label in asset_order:
+        m = meta[label]
+        tkr = m["ticker"]
+        if m["source"] == "yf":
+            if tkr not in raw_yf.columns:
+                continue
+            src = raw_yf[tkr].dropna()
+        else:
+            if tkr not in raw_fred.columns:
+                continue
+            src = raw_fred[tkr].dropna()
+
+        indices = [position_map[idx] for idx in src.index if idx in position_map]
+        if indices:
+          observed[label] = indices
+
+    if VIX_TICKER in raw_yf.columns:
+        src = raw_yf[VIX_TICKER].dropna()
+        indices = [position_map[idx] for idx in src.index if idx in position_map]
+        if indices:
+            observed[VIX_LABEL] = indices
+
+    return observed
+
+
 def load_live_defaults():
     if LIVE_DEFAULTS_PATH.exists():
         with open(LIVE_DEFAULTS_PATH, "r", encoding="utf-8") as f:
@@ -373,21 +401,27 @@ def load_live_defaults():
     }
 
 
-def _compute_live_asset_series(label, requested_day0, prices_df, meta):
-    if label not in prices_df.columns:
+def _compute_live_asset_series(label, requested_day0, daily_history, meta):
+    if label not in daily_history["prices"]:
         return None
-    col = prices_df[label].dropna()
-    if col.empty:
+    observed_positions = daily_history.get("observedIndices", {}).get(label, [])
+    dates = daily_history["dates"]
+    prices = daily_history["prices"][label]
+    points = [
+        (dates[idx], float(prices[idx]))
+        for idx in observed_positions
+        if prices[idx] is not None
+    ]
+    if not points:
         return None
 
-    target = pd.Timestamp(requested_day0)
-    eligible = col.index[col.index <= target]
+    eligible = [point for point in points if point[0] <= requested_day0]
     if len(eligible) == 0:
         return None
 
-    d0 = eligible[-1]
-    idx0 = col.index.get_loc(d0)
-    denom = col.iloc[idx0 - 1] if idx0 > 0 else col.iloc[idx0]
+    d0, day0_price = eligible[-1]
+    idx0 = next(i for i, point in enumerate(points) if point[0] == d0)
+    denom = points[idx0 - 1][1] if idx0 > 0 else day0_price
     if denom == 0 or np.isnan(denom):
         return None
 
@@ -397,14 +431,13 @@ def _compute_live_asset_series(label, requested_day0, prices_df, meta):
     scoring_levels = {}
     observed_dates = []
 
-    for i in range(idx0, len(col)):
-        dt = col.index[i]
-        val = float(col.iloc[i])
+    for i in range(idx0, len(points)):
+        dt, val = points[i]
         if np.isnan(val):
             continue
-        cal_off = int((dt - d0).days)
+        cal_off = int((pd.Timestamp(dt) - pd.Timestamp(d0)).days)
         td_off = i - idx0
-        observed_dates.append(dt.strftime("%Y-%m-%d"))
+        observed_dates.append(dt)
         raw_levels[cal_off] = round(val, 6)
         scoring_levels[td_off] = round(val, 6)
         if meta.get("is_rates_bp"):
@@ -422,8 +455,8 @@ def _compute_live_asset_series(label, requested_day0, prices_df, meta):
         "scoring_returns": scoring_returns,
         "scoring_levels": scoring_levels,
         "observed_dates": observed_dates,
-        "day0_price": round(float(col.iloc[idx0]), 6),
-        "actual_day0": d0.strftime("%Y-%m-%d"),
+        "day0_price": round(float(day0_price), 6),
+        "actual_day0": d0,
         "as_of": observed_dates[-1] if observed_dates else None,
     }
 
@@ -449,7 +482,7 @@ def _fill_calendar_series(raw_returns, raw_levels, day0_price, target_offset, ma
     return out_returns, out_levels
 
 
-def build_live_snapshot(prices_df, meta, all_labels, live_defaults):
+def build_live_snapshot(daily_history, meta, all_labels, live_defaults):
     requested_day0 = live_defaults["day0"]
     observed = {}
     asset_status = {}
@@ -459,7 +492,12 @@ def build_live_snapshot(prices_df, meta, all_labels, live_defaults):
     as_of_date = None
 
     for label in all_labels:
-        series = _compute_live_asset_series(label, requested_day0, prices_df, meta[label])
+        series = _compute_live_asset_series(
+            label,
+            requested_day0,
+            daily_history,
+            meta[label],
+        )
         if not series or not series["raw_returns"]:
             asset_status[label] = {
                 "status": "missing",
@@ -485,7 +523,7 @@ def build_live_snapshot(prices_df, meta, all_labels, live_defaults):
             as_of_date = series["as_of"] or as_of_date
 
     actual_day0 = actual_day0 or requested_day0
-    as_of_date = as_of_date or (prices_df.index[-1].strftime("%Y-%m-%d") if len(prices_df.index) else requested_day0)
+    as_of_date = as_of_date or daily_history.get("asOf") or requested_day0
     day_n = max(0, (pd.Timestamp(as_of_date) - pd.Timestamp(actual_day0)).days)
     trading_day_n = max(0, len(canonical_dates) - 1)
 
@@ -514,7 +552,7 @@ def build_live_snapshot(prices_df, meta, all_labels, live_defaults):
 
     return {
         "name": live_defaults["name"],
-        "snapshotDate": prices_df.index[-1].strftime("%Y-%m-%d") if len(prices_df.index) else requested_day0,
+        "snapshotDate": daily_history.get("asOf") or requested_day0,
         "requestedDay0": requested_day0,
         "actualDay0": actual_day0,
         "triggerDate": actual_day0,
@@ -633,6 +671,7 @@ def main():
     all_labels = [l for l in asset_order if l in prices.columns]
     all_classes = sorted(set(meta[l]["class"] for l in all_labels))
     availability = build_availability(prices[all_labels])
+    observed_indices = build_observed_indices(full_idx, raw_yf, raw_fred, asset_order, meta)
     
     print(f"Price frame: {prices.shape[1]} assets × {prices.shape[0]} rows")
     
@@ -720,6 +759,10 @@ def main():
             label: [None if pd.isna(v) else round(float(v), 6) for v in prices[label].tolist()]
             for label in all_labels
         },
+        "observedIndices": {
+            label: observed_indices.get(label, [])
+            for label in all_labels
+        },
         "availability": availability,
         "asOf": prices.index[-1].strftime("%Y-%m-%d") if len(prices.index) else None,
         "schemaVersion": 2,
@@ -729,7 +772,7 @@ def main():
         f.write(dh_bytes)
 
     live_defaults = load_live_defaults()
-    live_snapshot = build_live_snapshot(prices[all_labels], meta, all_labels, live_defaults)
+    live_snapshot = build_live_snapshot(daily_history, meta, all_labels, live_defaults)
     with open(OUT_DIR / "live_snapshot.json", "w") as f:
         json.dump(live_snapshot, f, separators=(",", ":"))
 

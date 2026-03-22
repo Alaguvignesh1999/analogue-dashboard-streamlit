@@ -71,6 +71,17 @@ export function LiveConfigTab() {
     });
   }, [assetMeta, assetQuery, similarityOptions]);
 
+  const requestedDay0 = live.day0 || '';
+  const day0ResolutionNote = useMemo(() => {
+    if (!requestedDay0 || !day0PriceDate || requestedDay0 === day0PriceDate) return '';
+    return `Requested ${requestedDay0} is not a trading session for ${TRIGGER_ASSET}. Using the latest available close on or before Day 0: ${day0PriceDate}.`;
+  }, [day0PriceDate, requestedDay0]);
+
+  const liveAnchorNote = useMemo(() => {
+    if (!requestedDay0 || !live.actualDay0 || requestedDay0 === live.actualDay0) return '';
+    return `Live scoring is anchored to ${live.actualDay0}, the latest observed market date on or before requested Day 0 ${requestedDay0}.`;
+  }, [live.actualDay0, requestedDay0]);
+
   const handleDateChange = useCallback((newDate: string) => {
     setLive({ day0: newDate });
     if (newDate.length === 10) fetchBothPrices(newDate);
@@ -147,7 +158,11 @@ export function LiveConfigTab() {
       });
 
       const modeLabel = data.provenance?.mode === 'shared' ? 'shared snapshot' : 'private scenario';
-      setStatus(`${live.name} loaded from ${modeLabel}: Day+${data.dayN} across ${Object.keys(returns).length} assets`);
+      const actualDay0 = data.actualDay0 ?? live.day0;
+      const anchorText = actualDay0 && live.day0 && actualDay0 !== live.day0
+        ? `requested ${live.day0}, anchored ${actualDay0}`
+        : `anchored ${actualDay0 ?? live.day0 ?? '--'}`;
+      setStatus(`${live.name} loaded from ${modeLabel}: ${anchorText} | Day+${data.dayN} across ${Object.keys(returns).length} assets`);
     } catch (error: any) {
       resetLive();
       setStatus(`Live pull failed: ${error.message}. Demo mode is now manual only.`);
@@ -350,9 +365,16 @@ export function LiveConfigTab() {
                     className="input-field text-lg font-semibold w-full"
                   />
                 ) : (
-                  <div className="text-xl font-bold text-[#e0e0e8]">
-                    ${day0Price?.toFixed(2) ?? '--'}
-                    {day0PriceDate && <span className="text-[10px] text-[#3a3a4a] ml-2 font-normal">{day0PriceDate}</span>}
+                  <div>
+                    <div className="text-xl font-bold text-[#e0e0e8]">
+                      ${day0Price?.toFixed(2) ?? '--'}
+                      {day0PriceDate && <span className="text-[10px] text-[#3a3a4a] ml-2 font-normal">{day0PriceDate}</span>}
+                    </div>
+                    {day0ResolutionNote && (
+                      <div className="text-[10px] text-[#ffab40] mt-1 leading-snug">
+                        {day0ResolutionNote}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -430,6 +452,11 @@ export function LiveConfigTab() {
             <div>{TRIGGER_ASSET}: ${live.trigger?.toFixed(2)}</div>
             <div>As of: {live.asOfDate ? new Date(live.asOfDate).toLocaleDateString() : '--'}</div>
           </div>
+          {liveAnchorNote && (
+            <div className="mt-2 text-[10px] text-[#ffab40]">
+              {liveAnchorNote}
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-3 text-[10px] text-[#6a6a7a] mt-2">
             <div>Mode: {live.requestMode || (provenance.liveSource === 'demo' ? 'demo' : '--')}</div>
             <div>Snapshot: {live.snapshotDate || '--'}</div>

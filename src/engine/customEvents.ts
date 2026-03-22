@@ -21,9 +21,14 @@ export interface CustomEventComputation {
 export function buildValidSeries(dailyHistory: DailyHistoryPayload, label: string): HistoricalPoint[] {
   const prices = dailyHistory.prices[label];
   if (!prices) return [];
+  const observedIndices = dailyHistory.observedIndices?.[label];
 
   const points: HistoricalPoint[] = [];
-  for (let index = 0; index < dailyHistory.dates.length; index += 1) {
+  const indices = observedIndices && observedIndices.length > 0
+    ? observedIndices
+    : Array.from({ length: dailyHistory.dates.length }, (_, index) => index);
+
+  for (const index of indices) {
     const value = prices[index];
     if (value === null || value === undefined || Number.isNaN(value)) continue;
     points.push({ index, date: dailyHistory.dates[index], value });

@@ -33,6 +33,20 @@ def latest_on_or_before(dates, values, target):
     return match
 
 
+def latest_observed_on_or_before(dates, values, observed_indices, target):
+    match = None
+    for idx in observed_indices:
+        date = dates[idx]
+        value = values[idx]
+        if value is None:
+            continue
+        if date <= target:
+            match = (date, value)
+        else:
+            break
+    return match
+
+
 def main():
     defaults = load_json(CONFIG_PATH)
     snapshot = load_json(DATA_DIR / "live_snapshot.json")
@@ -48,7 +62,8 @@ def main():
 
     dates = daily["dates"]
     brent = daily["prices"]["Brent Futures"]
-    match = latest_on_or_before(dates, brent, defaults["day0"])
+    observed_indices = daily.get("observedIndices", {}).get("Brent Futures", list(range(len(dates))))
+    match = latest_observed_on_or_before(dates, brent, observed_indices, defaults["day0"])
     assert match is not None, "Could not resolve Brent Futures on or before default day0"
     expected_date, expected_price = match
 
