@@ -4,7 +4,13 @@ import { useMemo } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel } from '@/engine/returns';
-import { getLiveScoringDay, getLiveScoringLevels, getLiveScoringReturns } from '@/engine/live';
+import {
+  getEffectiveScoringDate,
+  getEffectiveScoringDay,
+  getLiveLevelPointAtOrBefore,
+  getLiveScoringReturns,
+  getLiveReturnPointAtOrBefore,
+} from '@/engine/live';
 import { selectEvents } from '@/engine/similarity';
 import { nanMedian, nanPercentile } from '@/lib/math';
 import { entrySignal, fmtReturn } from '@/lib/format';
@@ -26,8 +32,8 @@ export function GateTab() {
 
   const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
   const scoringReturns = getLiveScoringReturns(live);
-  const scoringLevels = getLiveScoringLevels(live);
-  const dayN = getLiveScoringDay(live);
+  const dayN = getEffectiveScoringDay(live, allLabels);
+  const effectiveDate = getEffectiveScoringDate(live, allLabels);
   const fo = dayN + horizon;
 
   const rows = useMemo(() => {
@@ -48,6 +54,8 @@ export function GateTab() {
       gate: ReturnType<typeof entrySignal>;
       n: number;
       nTotal: number;
+      missingReason: string | null;
+      liveOffset: number | null;
     }> = [];
 
     for (const label of allLabels) {
@@ -68,16 +76,22 @@ export function GateTab() {
         fwdVals.filter((value) => (med > 0 && value > 0) || (med < 0 && value < 0)).length / fwdVals.length;
 
       let livePctile: number | null = null;
-      const liveSeries = scoringReturns[label];
-      if (liveSeries && liveSeries[dayN] !== undefined) {
+      let missingReason: string | null = null;
+      const livePoint = getLiveReturnPointAtOrBefore(live, label, dayN);
+      const entryPoint = getLiveLevelPointAtOrBefore(live, label, dayN);
+      if (livePoint) {
         const histAtDn: number[] = [];
         for (const eventName of selectedEvents) {
-          const value = poiRet(eventReturns, label, eventName, dayN);
+          const value = poiRet(eventReturns, label, eventName, livePoint.offset);
           if (!Number.isNaN(value)) histAtDn.push(value);
         }
         if (histAtDn.length >= 2) {
-          livePctile = (histAtDn.filter((value) => liveSeries[dayN] > value).length / histAtDn.length) * 100;
+          livePctile = (histAtDn.filter((value) => livePoint.value > value).length / histAtDn.length) * 100;
+        } else {
+          missingReason = `Too few historical comparisons at D+${livePoint.offset}`;
         }
+      } else {
+        missingReason = `No live scoring return on or before D+${dayN}`;
       }
 
       const tp = med >= 0 ? nanPercentile(fwdVals, 75) : nanPercentile(fwdVals, 25);
@@ -101,28 +115,34 @@ export function GateTab() {
         tp,
         sl,
         rr,
-        entryLevel: scoringLevels?.[label]?.[dayN] ?? null,
+        entryLevel: entryPoint?.value ?? null,
         livePctile,
         gate: entrySignal(livePctile),
         n: fwdVals.length,
         nTotal: selectedEvents.length,
+        missingReason: missingReason ?? (entryPoint ? null : `No live entry level on or before D+${dayN}`),
+        liveOffset: livePoint?.offset ?? null,
       });
     }
 
     result.sort((left, right) => right.sharpe - left.sharpe);
     return result;
-  }, [allLabels, assetMeta, dayN, eventReturns, fo, horizon, scoringLevels, scoringReturns, selectedEvents]);
+  }, [allLabels, assetMeta, dayN, eventReturns, fo, horizon, live, scoringReturns, selectedEvents]);
 
   return (
     <ChartCard
       title="Entry / Exit Gate"
-      subtitle={`${live.name || 'No event'} | trading D+${dayN} -> D+${fo} | ${selectedEvents.length} analogues`}
+      subtitle={`${live.name || 'No event'} | effective scoring D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} -> D+${fo} | ${selectedEvents.length} analogues`}
     >
-      <div className="overflow-x-auto">
+      <div className="px-4 pt-4 text-2xs text-text-dim space-y-1">
+        <div>Gate logic uses the latest valid live return and level on or before the effective scoring day for each asset.</div>
+        <div>Legend: `ENTER` &lt;33rd pctile, `HALF` 33-66th, `LATE` 66-85th, `SKIP` &gt;=85th. `N/A` only appears with a concrete missing-data reason.</div>
+      </div>
+      <div className="overflow-x-auto px-4 pb-4">
         <table className="w-full border-collapse text-2xs font-mono">
           <thead>
             <tr className="bg-bg-cell">
-              {['#', 'Asset', 'Dir', 'Gate', 'Entry', 'Median', 'Hit%', 'Sharpe', `TP +${horizon}d`, `SL +${horizon}d`, 'R:R', 'Pctile', 'N'].map((header) => (
+              {['#', 'Asset', 'Dir', 'Gate', 'Entry', 'Median', 'Hit%', 'Sharpe', `TP +${horizon}d`, `SL +${horizon}d`, 'R:R', 'Pctile', 'N', 'Reason'].map((header) => (
                 <th
                   key={header}
                   className="px-2 py-1.5 text-text-muted border-b border-border font-medium text-center whitespace-nowrap"
@@ -135,7 +155,7 @@ export function GateTab() {
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={13} className="px-4 py-8 text-center text-text-dim">
+                <td colSpan={14} className="px-4 py-8 text-center text-text-dim">
                   {scoringReturns ? 'No trades - adjust cutoff or horizon' : 'Run L1 Config + L2 Analogues first'}
                 </td>
               </tr>
@@ -157,7 +177,7 @@ export function GateTab() {
                     {row.gate.label}
                   </td>
                   <td className="px-2 py-1 text-center border-b border-border/30 text-text-secondary">
-                    {row.entryLevel === null ? '-' : row.entryLevel.toFixed(2)}
+                    {row.entryLevel === null ? '-' : `${row.entryLevel.toFixed(2)}${row.liveOffset !== null ? ` @D+${row.liveOffset}` : ''}`}
                   </td>
                   <td className={`px-2 py-1 text-center font-medium border-b border-border/30 ${row.med >= 0 ? 'text-up' : 'text-down'}`}>
                     {fmtReturn(row.med, row.isRates)}
@@ -184,6 +204,9 @@ export function GateTab() {
                   </td>
                   <td className="px-2 py-1 text-center text-text-dim border-b border-border/30">
                     {row.n}/{row.nTotal}
+                  </td>
+                  <td className="px-2 py-1 text-left text-text-dim border-b border-border/30 whitespace-nowrap">
+                    {row.gate.label === 'N/A' ? row.missingReason || 'Insufficient data' : '—'}
                   </td>
                 </tr>
               ))

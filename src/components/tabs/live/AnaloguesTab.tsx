@@ -3,6 +3,7 @@
 import { useMemo, useCallback } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Button, SliderControl, StatBox, EmptyState, Badge } from '@/components/ui/ChartCard';
+import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
 import { runAnalogueMatch, selectEvents } from '@/engine/similarity';
 
 export function AnaloguesTab() {
@@ -22,7 +23,8 @@ export function AnaloguesTab() {
     similarityAssets,
   } = useDashboard();
 
-  const scoringDayN = live.tradingDayN ?? live.dayN ?? null;
+  const scoringDayN = live.scoringReturns || live.returns ? getEffectiveScoringDay(live, similarityAssets) : null;
+  const scoringDate = live.scoringReturns || live.returns ? getEffectiveScoringDate(live, similarityAssets) : null;
   const scoringReturns = live.scoringReturns ?? live.returns;
   const hasLive = scoringReturns !== null && scoringDayN !== null;
 
@@ -64,7 +66,7 @@ export function AnaloguesTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title="Analogue Matching"
-        subtitle={`${scores.length} events scored | scoring D+${scoringDayN ?? 0} | weighted scoring`}
+        subtitle={`${scores.length} events scored | scoring D+${scoringDayN ?? 0}${scoringDate ? ` (${scoringDate})` : ''} | weighted scoring`}
         controls={
           <div className="flex items-center gap-3">
             <SliderControl label="Cutoff" value={scoreCutoff} onChange={setCutoff} min={0} max={1} step={0.05} />

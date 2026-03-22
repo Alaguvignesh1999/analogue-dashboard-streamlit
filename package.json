@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:data-integrity": "python scripts/data_integrity_check.py",
+    "test:gate-regression": "python scripts/gate_regression_check.py",
     "test:live-parity": "python scripts/live_parity_check.py",
     "test:snapshot-contract": "python scripts/live_snapshot_check.py"
   },

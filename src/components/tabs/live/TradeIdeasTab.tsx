@@ -2,14 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, Button } from '@/components/ui/ChartCard';
+import { ChartCard, Select } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel, unitLabel } from '@/engine/returns';
-import { getLiveScoringDay, getLiveScoringReturns } from '@/engine/live';
+import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveReturnPointAtOrBefore, getLiveScoringReturns } from '@/engine/live';
 import { selectEvents } from '@/engine/similarity';
 import { nanMedian, nanMean, nanStd, nanPercentile } from '@/lib/math';
 import { stars, statusFromPctile, fmtReturn } from '@/lib/format';
-import { POIS } from '@/config/engine';
 import { CUSTOM_GROUPS } from '@/config/assets';
+import { useDashboard as dashboardStore } from '@/store/dashboard';
 
 export interface TradeRow {
   lbl: string;
@@ -42,7 +42,7 @@ function computeTradeRows(
   selectedEvents: string[],
   dayN: number,
   fwdDays: number,
-  liveReturns: Record<string, Record<number, number>> | null,
+  live: ReturnType<typeof dashboardStore.getState>['live'],
 ): TradeRow[] {
   const nSel = selectedEvents.length;
   const fo = dayN + fwdDays;
@@ -55,7 +55,7 @@ function computeTradeRows(
     for (const en of selectedEvents) {
       const sv = poiRet(eventReturns, lbl, en, dayN);
       const fv = poiRet(eventReturns, lbl, en, fo);
-      if (!isNaN(sv) && !isNaN(fv)) fwdVals.push(fv - sv);
+      if (!Number.isNaN(sv) && !Number.isNaN(fv)) fwdVals.push(fv - sv);
     }
     if (fwdVals.length < 2) continue;
 
@@ -65,47 +65,41 @@ function computeTradeRows(
     const iqr = nanPercentile(fwdVals, 75) - nanPercentile(fwdVals, 25);
     const unit = unitLabel(assetMeta[lbl]);
 
-    const hitRate = fwdVals.filter(v =>
-      (med > 0 && v > 0) || (med < 0 && v < 0)
+    const hitRate = fwdVals.filter((value) =>
+      (med > 0 && value > 0) || (med < 0 && value < 0)
     ).length / fwdVals.length;
 
-    // Direction-adjusted metrics
     const dir = med >= 0 ? 1 : -1;
-    const adjVals = fwdVals.map(v => dir * v);
+    const adjVals = fwdVals.map((value) => dir * value);
     const mnAdj = nanMean(adjVals);
     const sdAdj = nanStd(adjVals);
     const sharpe = mnAdj / (sdAdj + 1e-9);
-    const downVals = adjVals.filter(v => v < 0);
+    const downVals = adjVals.filter((value) => value < 0);
     const dsd = downVals.length > 1 ? nanStd(downVals) : sdAdj + 1e-9;
     const sortino = mnAdj / (dsd + 1e-9);
     const worst = Math.min(...adjVals);
 
-    // Skewness
     let skew = 0;
     if (fwdVals.length >= 3) {
-      const m = nanMean(fwdVals);
-      const s = nanStd(fwdVals);
-      if (s > 0) {
-        skew = fwdVals.reduce((sum, v) => sum + ((v - m) / s) ** 3, 0) / fwdVals.length;
+      const mean = nanMean(fwdVals);
+      const std = nanStd(fwdVals);
+      if (std > 0) {
+        skew = fwdVals.reduce((sum, value) => sum + ((value - mean) / std) ** 3, 0) / fwdVals.length;
       }
     }
 
-    // Live deviation
-    let liveGap = NaN;
-    let livePctile = NaN;
-    if (liveReturns?.[lbl]) {
-      const lr = liveReturns[lbl];
-      const liveRetDn = lr[dayN];
-      if (liveRetDn !== undefined) {
-        const histAtDn: number[] = [];
-        for (const en of selectedEvents) {
-          const v = poiRet(eventReturns, lbl, en, dayN);
-          if (!isNaN(v)) histAtDn.push(v);
-        }
-        if (histAtDn.length >= 2) {
-          liveGap = liveRetDn - nanMedian(histAtDn);
-          livePctile = (histAtDn.filter(v => liveRetDn > v).length / histAtDn.length) * 100;
-        }
+    let liveGap = Number.NaN;
+    let livePctile = Number.NaN;
+    const livePoint = getLiveReturnPointAtOrBefore(live, lbl, dayN);
+    if (livePoint) {
+      const histAtDn: number[] = [];
+      for (const en of selectedEvents) {
+        const value = poiRet(eventReturns, lbl, en, livePoint.offset);
+        if (!Number.isNaN(value)) histAtDn.push(value);
+      }
+      if (histAtDn.length >= 2) {
+        liveGap = livePoint.value - nanMedian(histAtDn);
+        livePctile = (histAtDn.filter((value) => livePoint.value > value).length / histAtDn.length) * 100;
       }
     }
 
@@ -115,53 +109,72 @@ function computeTradeRows(
       cls: meta.class || '',
       ticker: meta.ticker || '',
       dir: med >= 0 ? 'LONG' : 'SHORT',
-      med, mean: mn, std: sd, iqr,
+      med,
+      mean: mn,
+      std: sd,
+      iqr,
       stars: stars(iqr, med),
       n: fwdVals.length,
       nTotal: nSel,
       unit,
-      hitRate, sharpe, sortino, skew, worst,
-      liveGap, livePctile,
-      status: statusFromPctile(livePctile),
+      hitRate,
+      sharpe,
+      sortino,
+      skew,
+      worst,
+      liveGap,
+      livePctile,
+      status: statusFromPctile(Number.isNaN(livePctile) ? null : livePctile),
       fwdVals,
     });
   }
 
-  rows.sort((a, b) => b.sharpe - a.sharpe);
+  rows.sort((left, right) => right.sharpe - left.sharpe);
   return rows;
 }
 
 export function TradeIdeasTab() {
   const {
-    eventReturns, assetMeta, allLabels, scores, scoreCutoff, horizon, live
+    eventReturns,
+    assetMeta,
+    allLabels,
+    scores,
+    scoreCutoff,
+    horizon,
+    live,
   } = useDashboard();
 
   const [group, setGroup] = useState('— All Assets —');
 
   const selectedEvents = useMemo(() => selectEvents(scores, scoreCutoff), [scores, scoreCutoff]);
   const scoringReturns = getLiveScoringReturns(live);
-  const dayN = getLiveScoringDay(live);
 
   const labels = useMemo(() => {
     if (group === '— All Assets —') return allLabels;
-    if (CUSTOM_GROUPS[group]) return CUSTOM_GROUPS[group].filter(l => allLabels.includes(l));
-    return allLabels.filter(l => assetMeta[l]?.class === group);
+    if (CUSTOM_GROUPS[group]) return CUSTOM_GROUPS[group].filter((label) => allLabels.includes(label));
+    return allLabels.filter((label) => assetMeta[label]?.class === group);
   }, [group, allLabels, assetMeta]);
 
-  const rows = useMemo(() =>
-    computeTradeRows(labels, eventReturns, assetMeta, selectedEvents, dayN, horizon, scoringReturns),
-    [labels, eventReturns, assetMeta, selectedEvents, dayN, horizon, scoringReturns]
+  const dayN = getEffectiveScoringDay(live, labels);
+  const effectiveDate = getEffectiveScoringDate(live, labels);
+
+  const rows = useMemo(
+    () => computeTradeRows(labels, eventReturns, assetMeta, selectedEvents, dayN, horizon, live),
+    [labels, eventReturns, assetMeta, selectedEvents, dayN, horizon, live],
   );
 
-  const groupOptions = useMemo(() => [
-    { value: '— All Assets —', label: '— All Assets —' },
-    ...Object.keys(CUSTOM_GROUPS).sort().map(g => ({ value: g, label: g })),
-  ], []);
+  const groupOptions = useMemo(
+    () => [
+      { value: '— All Assets —', label: '— All Assets —' },
+      ...Object.keys(CUSTOM_GROUPS).sort().map((groupName) => ({ value: groupName, label: groupName })),
+    ],
+    [],
+  );
 
   return (
     <ChartCard
       title="Trade Ideas"
-      subtitle={`${rows.length} ideas · Day+${dayN} → Day+${dayN + horizon} (+${horizon}d) · ${selectedEvents.length} analogues · cutoff ${scoreCutoff.toFixed(2)}`}
+      subtitle={`${rows.length} ideas · effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} -> D+${dayN + horizon} (+${horizon}d) · ${selectedEvents.length} analogues · cutoff ${scoreCutoff.toFixed(2)}`}
       controls={
         <Select label="Group" value={group} onChange={setGroup} options={groupOptions} />
       }
@@ -170,9 +183,9 @@ export function TradeIdeasTab() {
         <table className="w-full border-collapse text-2xs font-mono">
           <thead>
             <tr className="bg-bg-cell">
-              {['#','Asset','Class','Dir',`+${horizon}d`,'Median','Hit%','Sharpe','Sortino','Skew','Worst','Gap','Pctile','Status','Conv','N'].map(h => (
-                <th key={h} className="px-2 py-1.5 text-text-muted border-b border-border font-medium text-center whitespace-nowrap">
-                  {h}
+              {['#', 'Asset', 'Class', 'Dir', `+${horizon}d`, 'Median', 'Hit%', 'Sharpe', 'Sortino', 'Skew', 'Worst', 'Gap', 'Pctile', 'Status', 'Conv', 'N'].map((header) => (
+                <th key={header} className="px-2 py-1.5 text-text-muted border-b border-border font-medium text-center whitespace-nowrap">
+                  {header}
                 </th>
               ))}
             </tr>
@@ -181,49 +194,49 @@ export function TradeIdeasTab() {
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={16} className="px-4 py-8 text-center text-text-dim">
-                  {live.returns ? 'No trade ideas at current settings' : '← Run L1 Config to pull live data first'}
+                  {live.returns ? 'No trade ideas at current settings' : 'Run L1 Config to pull live data first'}
                 </td>
               </tr>
-            ) : rows.map((r, i) => {
-              const dirColor = r.dir === 'LONG' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
+            ) : rows.map((row, index) => {
+              const dirColor = row.dir === 'LONG' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
               return (
-                <tr key={r.lbl} className="hover:bg-bg-hover/40 transition-colors" style={{ backgroundColor: dirColor }}>
-                  <td className="px-2 py-1 text-center text-text-dim border-b border-border/30">{i + 1}</td>
+                <tr key={row.lbl} className="hover:bg-bg-hover/40 transition-colors" style={{ backgroundColor: dirColor }}>
+                  <td className="px-2 py-1 text-center text-text-dim border-b border-border/30">{index + 1}</td>
                   <td className="px-2 py-1 text-left text-text-primary border-b border-border/30 whitespace-nowrap font-medium">
-                    {displayLabel(assetMeta[r.lbl], r.lbl)}
+                    {displayLabel(assetMeta[row.lbl], row.lbl)}
                   </td>
-                  <td className="px-2 py-1 text-center text-text-muted border-b border-border/30">{r.cls}</td>
-                  <td className={`px-2 py-1 text-center font-semibold border-b border-border/30 ${r.dir === 'LONG' ? 'text-up' : 'text-down'}`}>
-                    {r.dir}
+                  <td className="px-2 py-1 text-center text-text-muted border-b border-border/30">{row.cls}</td>
+                  <td className={`px-2 py-1 text-center font-semibold border-b border-border/30 ${row.dir === 'LONG' ? 'text-up' : 'text-down'}`}>
+                    {row.dir}
                   </td>
                   <td className="px-2 py-1 text-center text-text-muted border-b border-border/30">+{horizon}d</td>
-                  <td className={`px-2 py-1 text-center font-medium border-b border-border/30 ${r.med >= 0 ? 'text-up' : 'text-down'}`}>
-                    {fmtReturn(r.med, r.unit === 'Δbps')}
+                  <td className={`px-2 py-1 text-center font-medium border-b border-border/30 ${row.med >= 0 ? 'text-up' : 'text-down'}`}>
+                    {fmtReturn(row.med, row.unit === 'Δbps')}
                   </td>
                   <td className="px-2 py-1 text-center border-b border-border/30">
-                    <span className={r.hitRate >= 0.6 ? 'text-up' : r.hitRate >= 0.5 ? 'text-accent-amber' : 'text-down'}>
-                      {(r.hitRate * 100).toFixed(0)}%
+                    <span className={row.hitRate >= 0.6 ? 'text-up' : row.hitRate >= 0.5 ? 'text-accent-amber' : 'text-down'}>
+                      {(row.hitRate * 100).toFixed(0)}%
                     </span>
                   </td>
-                  <td className={`px-2 py-1 text-center border-b border-border/30 ${r.sharpe > 0 ? 'text-up' : 'text-down'}`}>
-                    {r.sharpe.toFixed(2)}
+                  <td className={`px-2 py-1 text-center border-b border-border/30 ${row.sharpe > 0 ? 'text-up' : 'text-down'}`}>
+                    {row.sharpe.toFixed(2)}
                   </td>
-                  <td className={`px-2 py-1 text-center border-b border-border/30 ${r.sortino > 0 ? 'text-up' : 'text-down'}`}>
-                    {r.sortino.toFixed(2)}
+                  <td className={`px-2 py-1 text-center border-b border-border/30 ${row.sortino > 0 ? 'text-up' : 'text-down'}`}>
+                    {row.sortino.toFixed(2)}
                   </td>
-                  <td className="px-2 py-1 text-center text-text-secondary border-b border-border/30">{r.skew.toFixed(2)}</td>
+                  <td className="px-2 py-1 text-center text-text-secondary border-b border-border/30">{row.skew.toFixed(2)}</td>
                   <td className="px-2 py-1 text-center text-down border-b border-border/30">
-                    {fmtReturn(r.worst, r.unit === 'Δbps')}
+                    {fmtReturn(row.worst, row.unit === 'Δbps')}
                   </td>
                   <td className="px-2 py-1 text-center border-b border-border/30">
-                    {isNaN(r.liveGap) ? '—' : <span className={r.liveGap >= 0 ? 'text-up' : 'text-down'}>{r.liveGap.toFixed(1)}</span>}
+                    {Number.isNaN(row.liveGap) ? '—' : <span className={row.liveGap >= 0 ? 'text-up' : 'text-down'}>{row.liveGap.toFixed(1)}</span>}
                   </td>
                   <td className="px-2 py-1 text-center border-b border-border/30">
-                    {isNaN(r.livePctile) ? '—' : `${r.livePctile.toFixed(0)}th`}
+                    {Number.isNaN(row.livePctile) ? '—' : `${row.livePctile.toFixed(0)}th`}
                   </td>
-                  <td className="px-2 py-1 text-center border-b border-border/30 whitespace-nowrap">{r.status}</td>
-                  <td className="px-2 py-1 text-center border-b border-border/30">{r.stars}</td>
-                  <td className="px-2 py-1 text-center text-text-dim border-b border-border/30">{r.n}/{r.nTotal}</td>
+                  <td className="px-2 py-1 text-center border-b border-border/30 whitespace-nowrap">{row.status}</td>
+                  <td className="px-2 py-1 text-center border-b border-border/30">{row.stars}</td>
+                  <td className="px-2 py-1 text-center text-text-dim border-b border-border/30">{row.n}/{row.nTotal}</td>
                 </tr>
               );
             })}

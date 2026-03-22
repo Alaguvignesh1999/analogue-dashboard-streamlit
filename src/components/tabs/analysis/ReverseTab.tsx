@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
 import { runAnalogueMatch } from '@/engine/similarity';
-import { getLiveScoringDay, getLiveScoringReturns } from '@/engine/live';
+import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveScoringReturns } from '@/engine/live';
 import { nanMean } from '@/lib/math';
 
 interface ReverseMatch {
@@ -16,7 +16,8 @@ interface ReverseMatch {
 export function ReverseTab() {
   const { eventReturns, eventTags, macroContext, triggerZScores, similarityAssets, live, events } = useDashboard();
   const scoringReturns = getLiveScoringReturns(live);
-  const scoringDayN = getLiveScoringDay(live);
+  const scoringDayN = scoringReturns ? getEffectiveScoringDay(live, similarityAssets) : 0;
+  const scoringDate = scoringReturns ? getEffectiveScoringDate(live, similarityAssets) : null;
 
   const [topN, setTopN] = useState<number>(5);
 
@@ -157,7 +158,7 @@ export function ReverseTab() {
         )}
 
         <div className="text-2xs text-text-dim border-t border-border/40 pt-3 space-y-1">
-          <p>Cosine similarity of current return pattern (trading day {scoringDayN}) against historical event returns.</p>
+          <p>Cosine similarity of current return pattern (effective scoring day {scoringDayN}{scoringDate ? `, ${scoringDate}` : ''}) against historical event returns.</p>
           <p className="text-text-dim/70">Asset count in parentheses indicates valid comparisons per event.</p>
         </div>
       </div>

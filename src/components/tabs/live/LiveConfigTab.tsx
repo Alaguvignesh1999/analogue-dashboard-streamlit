@@ -5,6 +5,7 @@ import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Button, Badge } from '@/components/ui/ChartCard';
 import { ALL_TAGS } from '@/config/events';
 import { DEFAULT_LIVE_SIM_ASSETS, TRIGGER_ASSET } from '@/config/engine';
+import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
 import { displayLabel } from '@/engine/returns';
 
 export function LiveConfigTab() {
@@ -72,6 +73,14 @@ export function LiveConfigTab() {
   }, [assetMeta, assetQuery, similarityOptions]);
 
   const requestedDay0 = live.day0 || '';
+  const effectiveScoringDay = useMemo(
+    () => (live.scoringReturns || live.returns ? getEffectiveScoringDay(live, similarityAssets) : null),
+    [live, similarityAssets],
+  );
+  const effectiveScoringDate = useMemo(
+    () => (live.scoringReturns || live.returns ? getEffectiveScoringDate(live, similarityAssets) : null),
+    [live, similarityAssets],
+  );
   const day0ResolutionNote = useMemo(() => {
     if (!requestedDay0 || !day0PriceDate || requestedDay0 === day0PriceDate) return '';
     return `Requested ${requestedDay0} is not a trading session for ${TRIGGER_ASSET}. Using the latest available close on or before Day 0: ${day0PriceDate}.`;
@@ -448,9 +457,9 @@ export function LiveConfigTab() {
           <div className="grid grid-cols-5 gap-3 text-[10px] text-[#6a6a7a]">
             <div>Day+{live.dayN}</div>
             <div>Trading D+{live.tradingDayN ?? '--'}</div>
+            <div>Effective D+{effectiveScoringDay ?? '--'}</div>
             <div>{Object.keys(live.returns || {}).length} assets</div>
             <div>{TRIGGER_ASSET}: ${live.trigger?.toFixed(2)}</div>
-            <div>As of: {live.asOfDate ? new Date(live.asOfDate).toLocaleDateString() : '--'}</div>
           </div>
           {liveAnchorNote && (
             <div className="mt-2 text-[10px] text-[#ffab40]">
@@ -459,8 +468,13 @@ export function LiveConfigTab() {
           )}
           <div className="grid grid-cols-3 gap-3 text-[10px] text-[#6a6a7a] mt-2">
             <div>Mode: {live.requestMode || (provenance.liveSource === 'demo' ? 'demo' : '--')}</div>
+            <div>Score date: {effectiveScoringDate || '--'}</div>
             <div>Snapshot: {live.snapshotDate || '--'}</div>
             <div>Warnings: {live.warnings.length}</div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-[10px] text-[#6a6a7a] mt-2">
+            <div>As of: {live.asOfDate ? new Date(live.asOfDate).toLocaleDateString() : '--'}</div>
+            <div>Sim assets in scoring: {similarityAssets.length}</div>
           </div>
           {live.warnings.length > 0 && (
             <div className="mt-2 text-[10px] text-[#ffab40]">

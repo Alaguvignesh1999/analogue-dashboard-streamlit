@@ -2,6 +2,7 @@ import { cosine } from '@/lib/math';
 import { EVENTS } from '@/config/events';
 import { SIMILARITY_ASSET_POOL } from '@/config/engine';
 import { EventReturns } from './returns';
+import { getSeriesPointAtOrBefore } from './live';
 
 export interface DecayPoint {
   offset: number;
@@ -22,15 +23,8 @@ function pathVecAt(
   for (const asset of assets) {
     const series = returnsDict[asset] || {};
     for (const offset of offsets) {
-      if (series[offset] !== undefined) {
-        vecs.push(series[offset]);
-      } else if (series[offset - 1] !== undefined) {
-        vecs.push(series[offset - 1]);
-      } else if (series[offset + 1] !== undefined) {
-        vecs.push(series[offset + 1]);
-      } else {
-        vecs.push(0);
-      }
+      const point = getSeriesPointAtOrBefore(series, offset);
+      vecs.push(point ? point.value : 0);
     }
   }
 
