@@ -57,7 +57,7 @@ export function RotationTab() {
   const activePoi = positivePois[poiIndex] || positivePois.find((poi) => poi.offset === 21) || positivePois[0];
   const startOffset = mode === 'from-live' ? effectiveDay : 0;
   const endOffset = mode === 'from-live' ? effectiveDay + customForwardDays : activePoi?.offset ?? 21;
-  const horizonLabel = mode === 'from-live' ? `D+${effectiveDay} -> D+${endOffset}` : `D0 -> ${activePoi?.label || 'selected horizon'}`;
+  const horizonLabel = mode === 'from-live' ? `Live D+${displayDay} -> D+${displayDay + customForwardDays}` : `D0 -> ${activePoi?.label || 'selected horizon'}`;
 
   const rotationMetrics = useMemo(() => {
     const results: RotationMetrics[] = [];
@@ -242,8 +242,8 @@ export function RotationTab() {
             </div>
 
             <BottomDescription className="space-y-1">
-              <p>Rotation ranks which assets in the selected basket historically led or lagged after similar events. Use preset horizons for notebook-style post-event views, or switch to live mode to ask what tends to rotate from the current live analysis point over the next X trading days.</p>
-              <p>Preset mode measures rotation from D0 to the selected POI. Live mode measures from the current live analysis point to D+{endOffset}.</p>
+              <p>Rotation ranks which assets in the selected basket historically led or lagged after similar events. Use preset horizons for notebook-style post-event views, or switch to live mode to ask what tends to rotate from the current live state over the next X trading days.</p>
+              <p>Preset mode measures rotation from D0 to the selected POI. Live mode measures from live D+{displayDay} to D+{displayDay + customForwardDays}.</p>
               <p className="text-text-dim/70">Use leaders vs laggards for rotation clues, not as a substitute for the full analogue ranking.</p>
             </BottomDescription>
           </>

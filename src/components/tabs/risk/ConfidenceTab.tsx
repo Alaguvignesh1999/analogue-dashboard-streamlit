@@ -40,6 +40,7 @@ export function ConfidenceTab() {
   const dayN = getEffectiveScoringDay(live, labels);
   const displayDay = getLiveDisplayDay(live);
   const displayDate = getLiveDisplayDate(live);
+  const displayEndDay = displayDay + horizon;
 
   const rows = useMemo(() => {
     const results: Array<{
@@ -129,7 +130,7 @@ export function ConfidenceTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title="Bootstrap Confidence Bands"
-        subtitle={`N=500 resamples · ${selectedEvents.length} analogues · live D+${displayDay}${displayDate ? ` (${displayDate})` : ''} -> +${horizon}d`}
+        subtitle={`N=500 resamples · ${selectedEvents.length} analogues · live D+${displayDay}${displayDate ? ` (${displayDate})` : ''} -> D+${displayEndDay}`}
         controls={<Select label="" value={group} onChange={setGroup} options={groupOptions} />}
       >
         <div className="border-b border-border/30">
@@ -173,7 +174,7 @@ export function ConfidenceTab() {
         </div>
       </ChartCard>
 
-      <ChartCard title="Trade Proposal" subtitle="Directional sizing from forward distribution, hit rate, and half-Kelly scaling">
+      <ChartCard title="Trade Proposal" subtitle={`Directional sizing from live D+${displayDay} to D+${displayEndDay}`}>
         <div className="overflow-x-auto border-b border-border/30">
           <table className="w-full border-collapse text-2xs font-mono">
             <thead>
@@ -210,6 +211,9 @@ export function ConfidenceTab() {
           </table>
         </div>
         <BottomDescription className="space-y-2">
+          <div>
+            Confidence and trade sizing are measured from the current live state to D+{displayEndDay}, not from Day 0.
+          </div>
           <div>
             Confidence combines distribution width, hit rate, and sample size. Treat the bootstrap interval as the likely range for the median forward move, not a guarantee.
           </div>

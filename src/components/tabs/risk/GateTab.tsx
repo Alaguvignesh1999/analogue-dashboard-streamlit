@@ -37,6 +37,7 @@ export function GateTab() {
   const dayN = getEffectiveScoringDay(live, allLabels);
   const displayDay = getLiveDisplayDay(live);
   const displayDate = getLiveDisplayDate(live);
+  const displayEndDay = displayDay + horizon;
   const fo = dayN + horizon;
 
   const rows = useMemo(() => {
@@ -135,13 +136,13 @@ export function GateTab() {
   return (
     <ChartCard
       title="Entry / Exit Gate"
-      subtitle={`${live.name || 'No event'} | live D+${displayDay}${displayDate ? ` (${displayDate})` : ''} -> +${horizon}d | ${selectedEvents.length} analogues`}
+      subtitle={`${live.name || 'No event'} | live D+${displayDay}${displayDate ? ` (${displayDate})` : ''} -> D+${displayEndDay} | ${selectedEvents.length} analogues`}
     >
       <div className="overflow-x-auto px-4 pb-4">
         <table className="w-full border-collapse text-2xs font-mono">
           <thead>
             <tr className="bg-bg-cell">
-              {['#', 'Asset', 'Dir', 'Gate', 'Entry', 'Median', 'Hit%', 'Sharpe', `TP +${horizon}d`, `SL +${horizon}d`, 'R:R', 'Pctile', 'N', 'Reason'].map((header) => (
+              {['#', 'Asset', 'Dir', 'Gate', 'Entry', 'Median', 'Hit%', 'Sharpe', `TP D+${displayEndDay}`, `SL D+${displayEndDay}`, 'R:R', 'Pctile', 'N', 'Reason'].map((header) => (
                 <th
                   key={header}
                   className="px-2 py-1.5 text-text-muted border-b border-border font-medium text-center whitespace-nowrap"
@@ -214,6 +215,7 @@ export function GateTab() {
         </table>
       </div>
       <BottomDescription className="space-y-1">
+        <div>This tab is measured from the current live state to D+{displayEndDay}, not from Day 0.</div>
         <div>Gate logic uses the latest valid live return and level on or before the live analysis point for each asset.</div>
         <div>Entry is the resolved live level used for the gate. TP and SL show absolute target levels with the implied move in brackets.</div>
         <div>Legend: ENTER &lt;33rd pctile, HALF 33-66th, LATE 66-85th, SKIP &gt;=85th. N/A only appears with a concrete missing-data reason.</div>

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, SliderControl, Badge } from '@/components/ui/ChartCard';
 import { displayLabel, poiRet, unitLabel } from '@/engine/returns';
-import { getEffectiveScoringDay } from '@/engine/live';
+import { getEffectiveScoringDay, getLiveDisplayDay, getLiveDisplayDate } from '@/engine/live';
 import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import { corrcoef, nanMedian, nanStd } from '@/lib/math';
 import { fmtReturn } from '@/lib/format';
@@ -60,6 +60,9 @@ export function ScreenerTab() {
   const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
   const labels = useMemo(() => getGroupLabels(group, allLabels, assetMeta), [group, allLabels, assetMeta]);
   const dayN = getEffectiveScoringDay(live, labels);
+  const displayDay = getLiveDisplayDay(live);
+  const displayDate = getLiveDisplayDate(live);
+  const displayEndDay = displayDay + horizon;
   const fo = dayN + horizon;
   const minHit = minHitPct / 100;
   const minCov = minCovPct / 100;
@@ -194,11 +197,11 @@ export function ScreenerTab() {
   return (
     <ChartCard
       title="Signal Screener"
-      subtitle={`ACT ${nAct} | MONITOR ${nMonitor} | Crowded ${nCrowded} | forward +${horizon}d`}
+      subtitle={`ACT ${nAct} | MONITOR ${nMonitor} | Crowded ${nCrowded} | live D+${displayDay}${displayDate ? ` (${displayDate})` : ''} -> D+${displayEndDay}`}
       controls={<Select label="Group" value={group} onChange={setGroup} options={groupOptions} />}
     >
       <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/50 bg-bg-cell/20">
-        Screener ranks assets by forward-return quality across the currently selected analogue set. Correlated-trade flags are informational only: they warn you when a lower-ranked idea is effectively the same analogue expression as a stronger row above it.
+        Screener ranks assets by forward-return quality from the current live state to D+{displayEndDay} across the currently selected analogue set. Correlated-trade flags are informational only: they warn you when a lower-ranked idea is effectively the same analogue expression as a stronger row above it.
       </div>
 
       <div className="px-4 py-2 flex gap-4 border-b border-border/50 flex-wrap">

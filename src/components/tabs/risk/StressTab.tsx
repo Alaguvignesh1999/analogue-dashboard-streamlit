@@ -50,6 +50,7 @@ export function StressTab() {
   const dayN = getEffectiveScoringDay(live, positionLabels);
   const displayDay = getLiveDisplayDay(live);
   const displayDate = getLiveDisplayDate(live);
+  const displayEndDay = displayDay + horizon;
 
   const assetOptions = useMemo(
     () => allLabels.map((label) => ({ value: label, label: displayLabel(assetMeta[label], label) })),
@@ -163,7 +164,7 @@ export function StressTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title="Portfolio Stress Test"
-        subtitle={`${selectedPortfolio} | ${selectedEvents.length} analogues | live D+${displayDay}${displayDate ? ` (${displayDate})` : ''} -> +${horizon}d`}
+        subtitle={`${selectedPortfolio} | ${selectedEvents.length} analogues | live D+${displayDay}${displayDate ? ` (${displayDate})` : ''} -> D+${displayEndDay}`}
         controls={
           <div className="flex items-center gap-2">
             <Select label="Portfolio" value={selectedPortfolio} onChange={setSelectedPortfolio} options={portfolioOptions} />
@@ -306,7 +307,7 @@ export function StressTab() {
           </div>
         )}
         <BottomDescription>
-          Stress runs the current portfolio through each selected analogue event and shows the distribution of outcomes. Use nominal view for dollar PnL and percentage view for normalized portfolio-return terms.
+          Stress runs the current portfolio through each selected analogue event from the current live state to D+{displayEndDay}. Use nominal view for dollar PnL and percentage view for normalized portfolio-return terms.
         </BottomDescription>
       </ChartCard>
     </div>
