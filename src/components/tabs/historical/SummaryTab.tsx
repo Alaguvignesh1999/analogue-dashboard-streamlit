@@ -2,18 +2,15 @@
 
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel, eventDateMap, isAssetAvailableForEvent } from '@/engine/returns';
 import { POIS } from '@/config/engine';
 import { CUSTOM_GROUPS } from '@/config/assets';
 import { nanMean, nanStd } from '@/lib/math';
+import { themedHeatColor } from '@/theme/chart';
 
 function heatColor(value: number, maxAbs: number, isRates: boolean): string {
-  if (isNaN(value)) return 'transparent';
-  const intensity = Math.min(Math.abs(value) / (maxAbs + 1e-9), 1);
-  const alpha = 0.1 + intensity * 0.5;
-  const isGood = isRates ? value < 0 : value > 0;
-  return isGood ? `rgba(34, 197, 94, ${alpha.toFixed(2)})` : `rgba(239, 68, 68, ${alpha.toFixed(2)})`;
+  return themedHeatColor(value, maxAbs, !isRates);
 }
 
 export function SummaryTab() {
@@ -77,10 +74,6 @@ export function SummaryTab() {
         subtitle={`Mean +/- Std across ${activeEventNames.length} valid events`}
         controls={<Select value={group} onChange={setGroup} options={groupOptions} />}
       >
-        <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-          Each cell shows the mean and standard deviation for that asset at that POI across the active event set. Pre-inception and otherwise invalid event rows are excluded before aggregation. Blank cells mean there were too few valid observations to trust the summary.
-        </div>
-
         <div className="overflow-x-auto border-t border-border/40">
           <table className="w-full border-collapse text-2xs font-mono">
             <thead>
@@ -135,13 +128,14 @@ export function SummaryTab() {
             </tbody>
           </table>
         </div>
+        <BottomDescription>
+          Each cell shows the mean and standard deviation for that asset at that POI across the active event set. Pre-inception and otherwise invalid event rows are excluded before aggregation. Blank cells mean there were too few valid observations to trust the summary.
+        </BottomDescription>
       </ChartCard>
 
-      <div className="p-4 bg-bg-cell/30 border border-border/40 rounded-sm">
-        <div className="text-2xs text-text-dim">
-          <span className="font-semibold">Legend:</span> Cells now ignore pre-inception event rows instead of treating missing data as valid observations.
-        </div>
-      </div>
+      <BottomDescription className="border border-border/40 rounded-sm bg-bg-cell/30">
+        <span className="font-semibold">Legend:</span> Cells now ignore pre-inception event rows instead of treating missing data as valid observations.
+      </BottomDescription>
     </div>
   );
 }

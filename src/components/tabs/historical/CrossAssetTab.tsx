@@ -2,25 +2,18 @@
 
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, EmptyState, Button, Badge } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, EmptyState, Button, Badge } from '@/components/ui/ChartCard';
 import { anchorSeriesValue, displayLabel, isSparsePoiSeries, unitLabel } from '@/engine/returns';
 import { POIS, PRE_WINDOW_TD, POST_WINDOW_TD } from '@/config/engine';
 import { CUSTOM_GROUPS } from '@/config/assets';
+import { CHART_PALETTE, CHART_THEME } from '@/config/theme';
+import { alphaThemeColor, dayZeroMarkerStyle, THEME_COLORS, THEME_FONTS, themeStrokeWidth } from '@/theme/chart';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, ResponsiveContainer,
 } from 'recharts';
 
 const ALL_ASSETS_GROUP = 'All Assets';
-const AXIS_TICK = '#8a8a9a';
-const AXIS_LINE = '#2a2a3a';
-const GRID = '#1c1c2c';
-const ZERO = '#3a3a4e';
-const PALETTE = [
-  '#00e5ff', '#ff5252', '#69f0ae', '#b388ff', '#ffab40',
-  '#ff80ab', '#40c4ff', '#ccff90', '#ffd740', '#ea80fc',
-  '#84ffff', '#ff6e40', '#a7ffeb', '#ff7043', '#4fc3f7', '#aed581',
-];
 
 export function CrossAssetTab() {
   const {
@@ -45,6 +38,7 @@ export function CrossAssetTab() {
     () => events.filter((event) => activeEvents.has(event.name)).map((event) => event.name),
     [activeEvents, events]
   );
+  const dayZeroStyle = dayZeroMarkerStyle();
 
   useEffect(() => {
     if (activeEventNames.length > 0 && (!selectedEvent || !activeEventNames.includes(selectedEvent))) {
@@ -177,28 +171,28 @@ export function CrossAssetTab() {
 
     return (
       <div style={{
-        background: 'rgba(12,12,18,0.97)',
-        border: '1px solid #2a2a3a',
+        background: CHART_THEME.tooltipBg,
+        border: `1px solid ${CHART_THEME.gridBright}`,
         borderRadius: 3,
         fontSize: 11,
-        fontFamily: 'JetBrains Mono',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+        fontFamily: THEME_FONTS.mono,
+        boxShadow: `0 8px 32px ${alphaThemeColor('shadow', '0.18')}`,
         padding: '8px 12px',
         maxHeight: 420,
         overflowY: 'auto',
       }}>
-        <div style={{ color: AXIS_TICK, fontWeight: 600, marginBottom: 6, borderBottom: '1px solid #1c1c2c', paddingBottom: 4 }}>
+        <div style={{ color: CHART_THEME.textMuted, fontWeight: 600, marginBottom: 6, borderBottom: `1px solid ${CHART_THEME.grid}`, paddingBottom: 4 }}>
           Day {Number(label) >= 0 ? '+' : ''}{label}
         </div>
         {rows.map((entry: any) => {
           const value = Number(entry.value);
           return (
             <div key={entry.dataKey} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '1.5px 0' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: entry.color, flexShrink: 0, boxShadow: `0 0 4px ${entry.color}60` }} />
-              <span style={{ color: '#8a8a9a', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: entry.color, flexShrink: 0, boxShadow: `0 0 4px ${alphaThemeColor('shadow', '0.18')}` }} />
+              <span style={{ color: CHART_THEME.textMuted, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
                 {displayLabel(assetMeta[entry.dataKey], entry.dataKey)}
               </span>
-              <span style={{ color: value >= 0 ? '#69f0ae' : '#ff5252', fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
+              <span style={{ color: value >= 0 ? CHART_THEME.up : CHART_THEME.down, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
                 {value >= 0 ? '+' : ''}{value.toFixed(2)} {unitSummary}
               </span>
             </div>
@@ -220,10 +214,6 @@ export function CrossAssetTab() {
           </div>
         }
       >
-        <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-          Asset selection persists independently of the group browser, so you can browse one group without losing assets already chosen from another. All series are anchored to Day 0 for the selected event; if units differ across assets, treat the chart as a visual relative comparison rather than a like-for-like magnitude comparison.
-        </div>
-
         <div className="p-4 border-b border-border/40 space-y-3">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">
@@ -253,9 +243,14 @@ export function CrossAssetTab() {
                   onClick={() => toggleCrossAssetSelection(asset)}
                   className={`text-left px-2.5 py-2 rounded-sm border transition-all ${
                     selected
-                      ? 'border-accent-teal/30 bg-accent-teal/10 text-accent-teal'
+                      ? 'text-text-primary'
                       : 'border-border/40 bg-bg-cell/30 text-text-secondary hover:border-border/70'
                   }`}
+                  style={selected ? {
+                    borderColor: THEME_COLORS.controlActiveBorder,
+                    backgroundColor: alphaThemeColor('controlActiveBg', '0.08'),
+                    color: THEME_COLORS.textPrimary,
+                  } : undefined}
                 >
                   <div className="text-2xs font-medium">{displayLabel(assetMeta[asset], asset)}</div>
                   <div className="text-[10px] opacity-70 mt-1">{assetMeta[asset]?.class || 'Unknown'}</div>
@@ -275,51 +270,51 @@ export function CrossAssetTab() {
             <div className="flex-1 relative">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 16, right: 12, bottom: 20, left: 8 }}>
-                  <CartesianGrid stroke={GRID} strokeDasharray="2 8" />
+                  <CartesianGrid stroke={CHART_THEME.grid} strokeDasharray="2 8" />
                   <XAxis
                     dataKey="offset"
-                    stroke={AXIS_LINE}
-                    tick={{ fontSize: 10, fill: AXIS_TICK, fontFamily: 'JetBrains Mono' }}
+                    stroke={CHART_THEME.axisLine}
+                    tick={{ fontSize: 10, fill: CHART_THEME.textMuted, fontFamily: THEME_FONTS.mono }}
                     ticks={POIS.map((poi) => poi.offset)}
                     tickFormatter={(value) => POIS.find((poi) => poi.offset === value)?.label || ''}
-                    axisLine={{ stroke: AXIS_LINE }}
-                    tickLine={{ stroke: AXIS_LINE }}
+                    axisLine={{ stroke: CHART_THEME.axisLine }}
+                    tickLine={{ stroke: CHART_THEME.axisLine }}
                   />
                   <YAxis
                     domain={yDomain}
-                    stroke={AXIS_LINE}
-                    tick={{ fontSize: 10, fill: AXIS_TICK, fontFamily: 'JetBrains Mono' }}
+                    stroke={CHART_THEME.axisLine}
+                    tick={{ fontSize: 10, fill: CHART_THEME.textMuted, fontFamily: THEME_FONTS.mono }}
                     tickFormatter={(value: number) => `${value > 0 ? '+' : ''}${value.toFixed(0)}`}
-                    axisLine={{ stroke: AXIS_LINE }}
-                    tickLine={{ stroke: AXIS_LINE }}
+                    axisLine={{ stroke: CHART_THEME.axisLine }}
+                    tickLine={{ stroke: CHART_THEME.axisLine }}
                     width={48}
                   />
                   <Tooltip
                     content={customTooltip}
                     isAnimationActive={false}
-                    cursor={{ stroke: '#3a3a4a', strokeWidth: 1, strokeDasharray: '4 4' }}
+                    cursor={{ stroke: CHART_THEME.zero, strokeWidth: 1, strokeDasharray: '4 4' }}
                     wrapperStyle={{ zIndex: 100 }}
                   />
 
-                  <ReferenceLine y={0} stroke={ZERO} strokeWidth={1} />
+                  <ReferenceLine y={0} stroke={CHART_THEME.zero} strokeWidth={1} />
                   <ReferenceLine
                     x={0}
-                    stroke="#00d4aa"
-                    strokeDasharray="4 4"
-                    strokeWidth={1.2}
-                    label={{ value: 'D+0', position: 'insideTopRight', fill: '#00d4aa', fontSize: 10, fontWeight: 700, offset: 8 }}
+                    stroke={dayZeroStyle.stroke}
+                    strokeDasharray={dayZeroStyle.strokeDasharray}
+                    strokeWidth={dayZeroStyle.strokeWidth}
+                    label={{ value: 'D+0', position: 'insideTopRight', fill: dayZeroStyle.stroke, fontSize: 10, fontWeight: 700, offset: 8 }}
                   />
                   {POIS.filter((poi) => poi.offset !== 0).map((poi) => (
-                    <ReferenceLine key={poi.label} x={poi.offset} stroke={GRID} strokeDasharray="2 6" />
+                    <ReferenceLine key={poi.label} x={poi.offset} stroke={CHART_THEME.grid} strokeDasharray="2 6" />
                   ))}
 
                   {allLineKeys.map((key, index) => (
                     <Line
                       key={key}
                       dataKey={key}
-                      stroke={PALETTE[index % PALETTE.length]}
-                      strokeWidth={sparseEvent ? 1.2 : 1.6}
-                      dot={sparseEvent ? { r: 3, fill: PALETTE[index % PALETTE.length], strokeWidth: 0 } : false}
+                      stroke={CHART_PALETTE[index % CHART_PALETTE.length]}
+                      strokeWidth={themeStrokeWidth(sparseEvent ? 1.2 : 1.6)}
+                      dot={sparseEvent ? { r: 3, fill: CHART_PALETTE[index % CHART_PALETTE.length], strokeWidth: 0 } : false}
                       connectNulls={false}
                       hide={hiddenLines.has(key)}
                       isAnimationActive={false}
@@ -336,7 +331,7 @@ export function CrossAssetTab() {
               <div className="space-y-1.5">
                 {allLineKeys.map((key, index) => {
                   const hidden = hiddenLines.has(key);
-                  const color = PALETTE[index % PALETTE.length];
+                  const color = CHART_PALETTE[index % CHART_PALETTE.length];
                   return (
                     <button
                       key={key}
@@ -345,7 +340,7 @@ export function CrossAssetTab() {
                       title="Click to toggle, double-click to isolate"
                       style={{ opacity: hidden ? 0.3 : 1 }}
                     >
-                      <span className="w-2 h-[2px] shrink-0 rounded-full transition-all group-hover:h-[3px]" style={{ backgroundColor: color, boxShadow: hidden ? 'none' : `0 0 6px ${color}60` }} />
+                      <span className="w-2 h-[2px] shrink-0 rounded-full transition-all group-hover:h-[3px]" style={{ backgroundColor: color, boxShadow: hidden ? 'none' : `0 0 6px ${alphaThemeColor('shadow', '0.16')}` }} />
                       <span className={`text-2xs truncate transition-colors font-mono ${hidden ? 'text-text-dim' : 'text-text-secondary group-hover:text-text-primary'}`}>
                         {displayLabel(assetMeta[key], key)}
                       </span>
@@ -356,6 +351,9 @@ export function CrossAssetTab() {
             </div>
           </div>
         )}
+        <BottomDescription>
+          Asset selection persists independently of the group browser, so you can browse one group without losing assets already chosen from another. All series are anchored to Day 0 for the selected event; if units differ across assets, treat the chart as a visual relative comparison rather than a like-for-like magnitude comparison.
+        </BottomDescription>
       </ChartCard>
     </div>
   );

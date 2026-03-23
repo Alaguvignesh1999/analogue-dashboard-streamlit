@@ -10,7 +10,9 @@
     "test:data-integrity": "python scripts/data_integrity_check.py",
     "test:gate-regression": "python scripts/gate_regression_check.py",
     "test:live-parity": "python scripts/live_parity_check.py",
-    "test:snapshot-contract": "python scripts/live_snapshot_check.py"
+    "test:snapshot-contract": "python scripts/live_snapshot_check.py",
+    "test:ui-contract": "python scripts/ui_contract_check.py",
+    "test:theme-contract": "python scripts/theme_contract_check.py"
   },
   "dependencies": {
     "lightweight-charts": "^4.2.0",

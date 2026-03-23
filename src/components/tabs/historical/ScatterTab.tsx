@@ -6,6 +6,8 @@ import { ChartCard, Select, SliderControl, EmptyState } from '@/components/ui/Ch
 import { poiRet, displayLabel, unitLabel, eventDateMap, isAssetAvailableForEvent } from '@/engine/returns';
 import { getSeriesPointAtOrBefore } from '@/engine/live';
 import { POIS, PRE_WINDOW_TD, POST_WINDOW_TD } from '@/config/engine';
+import { CHART_THEME } from '@/config/theme';
+import { alphaThemeColor, getEventSeriesColor, THEME_COLORS, THEME_FONTS } from '@/theme/chart';
 import {
   ScatterChart,
   Scatter,
@@ -15,12 +17,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-
-const PALETTE = [
-  '#00e5ff', '#ff5252', '#69f0ae', '#b388ff', '#ffab40',
-  '#ff80ab', '#40c4ff', '#ccff90', '#ffd740', '#ea80fc',
-  '#84ffff', '#ff6e40', '#a7ffeb',
-];
 
 interface ScatterPoint {
   x: number;
@@ -165,7 +161,8 @@ export function ScatterTab() {
                 id="scatter-step-mode"
                 checked={stepMode}
                 onChange={(event) => setStepMode(event.target.checked)}
-                className="h-4 w-4 accent-accent-teal cursor-pointer"
+                className="h-4 w-4 cursor-pointer"
+                style={{ accentColor: THEME_COLORS.controlActiveBg }}
               />
               <label htmlFor="scatter-step-mode" className="text-2xs font-medium text-text-secondary cursor-pointer">
                 Step Mode
@@ -195,7 +192,7 @@ export function ScatterTab() {
           <div className="h-[560px] border-t border-border/40">
             <ResponsiveContainer width="100%" height="100%">
               <ScatterChart margin={{ top: 20, right: 20, bottom: 60, left: 60 }}>
-                <CartesianGrid strokeDasharray="2 8" stroke="#1e1e22" vertical={false} />
+                <CartesianGrid strokeDasharray="2 8" stroke={CHART_THEME.grid} vertical={false} />
                 <XAxis
                   dataKey="x"
                   type="number"
@@ -204,13 +201,13 @@ export function ScatterTab() {
                     value: `${xLabel} (${xUnit})`,
                     position: 'bottom',
                     offset: 10,
-                    fill: '#71717a',
+                    fill: CHART_THEME.textMuted,
                     fontSize: 10,
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: THEME_FONTS.mono,
                   }}
-                  tick={{ fill: '#71717a', fontSize: 10, fontFamily: 'JetBrains Mono' }}
-                  axisLine={{ stroke: '#1e1e22' }}
-                  tickLine={{ stroke: '#1e1e22' }}
+                  tick={{ fill: CHART_THEME.textMuted, fontSize: 10, fontFamily: THEME_FONTS.mono }}
+                  axisLine={{ stroke: CHART_THEME.axisLine }}
+                  tickLine={{ stroke: CHART_THEME.axisLine }}
                 />
                 <YAxis
                   dataKey="y"
@@ -221,31 +218,32 @@ export function ScatterTab() {
                     angle: -90,
                     position: 'insideLeft',
                     offset: -10,
-                    fill: '#71717a',
+                    fill: CHART_THEME.textMuted,
                     fontSize: 10,
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: THEME_FONTS.mono,
                   }}
-                  tick={{ fill: '#71717a', fontSize: 10, fontFamily: 'JetBrains Mono' }}
-                  axisLine={{ stroke: '#1e1e22' }}
-                  tickLine={{ stroke: '#1e1e22' }}
+                  tick={{ fill: CHART_THEME.textMuted, fontSize: 10, fontFamily: THEME_FONTS.mono }}
+                  axisLine={{ stroke: CHART_THEME.axisLine }}
+                  tickLine={{ stroke: CHART_THEME.axisLine }}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: 'rgba(12,12,18,0.96)',
-                    border: '1px solid #1e1e22',
+                    backgroundColor: CHART_THEME.tooltipBg,
+                    border: `1px solid ${CHART_THEME.gridBright}`,
                     borderRadius: '4px',
                     padding: '8px',
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: THEME_FONTS.mono,
+                    color: CHART_THEME.textPrimary,
                   }}
                   formatter={(value: any) => typeof value === 'number' ? value.toFixed(3) : value}
-                  cursor={{ fill: 'rgba(0, 212, 170, 0.08)' }}
+                  cursor={{ fill: alphaThemeColor('accentTeal', '0.08') }}
                 />
 
                 {regression?.line && (
                   <Scatter
                     name="Regression"
                     data={regression.line}
-                    fill="#b388ff"
+                    fill={CHART_THEME.accentPurple}
                     line
                     lineType="joint"
                     shape={(props: any) => <circle cx={props.cx} cy={props.cy} r={0} fill="none" />}
@@ -259,7 +257,7 @@ export function ScatterTab() {
                     const { cx, cy, payload } = props;
                     const activeEventList = events.filter((event) => activeEvents.has(event.name));
                     const eventIndex = activeEventList.findIndex((event) => event.name === payload.event);
-                    const color = payload.isLive ? '#ffab40' : PALETTE[eventIndex % PALETTE.length];
+                    const color = payload.isLive ? CHART_THEME.live : getEventSeriesColor(payload.event, eventIndex);
                     return (
                       <circle
                         cx={cx}
@@ -269,8 +267,8 @@ export function ScatterTab() {
                         opacity={0.85}
                         style={{
                           filter: payload.isLive
-                            ? 'drop-shadow(0 0 8px #ffab40)'
-                            : `drop-shadow(0 0 4px ${color}40)`,
+                            ? `drop-shadow(0 0 8px ${alphaThemeColor('live', '0.35')})`
+                            : `drop-shadow(0 0 4px ${alphaThemeColor('shadow', '0.16')})`,
                         }}
                       />
                     );
@@ -290,7 +288,7 @@ export function ScatterTab() {
         {regression?.r2 !== null && regression?.r2 !== undefined && (
           <div className="p-3 bg-bg-cell/50 border border-border/40 rounded-sm">
             <div className="text-3xs text-text-dim uppercase tracking-wider mb-1 font-semibold">R2</div>
-            <div className="text-sm font-bold text-accent-teal font-mono">{regression.r2.toFixed(3)}</div>
+            <div className="text-sm font-bold text-accent-blue font-mono">{regression.r2.toFixed(3)}</div>
           </div>
         )}
       </div>

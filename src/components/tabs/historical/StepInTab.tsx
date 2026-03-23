@@ -1,12 +1,13 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, SliderControl, Badge } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, SliderControl, Badge } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel } from '@/engine/returns';
 import { POIS, POST_WINDOW_TD } from '@/config/engine';
 import { CUSTOM_GROUPS } from '@/config/assets';
 import { nanMean, nanMedian, nanStd, nanPercentile } from '@/lib/math';
 import { fmtReturn, stars } from '@/lib/format';
+import { alphaThemeColor } from '@/theme/chart';
 
 export function StepInTab() {
   const { eventReturns, assetMeta, allLabels, events, activeEvents } = useDashboard();
@@ -104,10 +105,6 @@ export function StepInTab() {
           </div>
         }
       >
-        <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-          Step-In asks: if you wait until D+{stepDay} to enter instead of trading immediately at Day 0, which assets still offer the best forward distribution by D+{fwdOffset}? Use it to compare delayed-entry opportunities, not to replace the main analogue ranking.
-        </div>
-
         <div className="overflow-x-auto border-t border-border/40">
           <table className="w-full border-collapse text-2xs font-mono">
             <thead>
@@ -141,7 +138,7 @@ export function StepInTab() {
                     <tr
                       key={row.asset}
                       className="hover:bg-bg-cell/40 transition-colors table-row-hover"
-                      style={{ backgroundColor: isUp ? 'rgba(34,197,94,0.05)' : 'rgba(239,68,68,0.05)' }}
+                      style={{ backgroundColor: isUp ? alphaThemeColor('up', '0.05') : alphaThemeColor('down', '0.05') }}
                     >
                       <td className="px-2 py-2 text-center text-text-dim border-b border-border/30 font-medium">{index + 1}</td>
                       <td className="px-3 py-2 border-b border-border/30 text-text-primary whitespace-nowrap font-medium">{displayLabel(assetMeta[row.asset], row.asset)}</td>
@@ -157,14 +154,14 @@ export function StepInTab() {
                       <td className="px-2 py-2 text-center border-b border-border/30 text-text-dim">{row.std.toFixed(1)}</td>
                       <td className="px-2 py-2 text-center border-b border-border/30 text-text-dim">{row.iqr.toFixed(1)}</td>
                       <td className="px-2 py-2 text-center border-b border-border/30">
-                        <span className={winRateQuality === 'green' ? 'text-up font-semibold' : winRateQuality === 'amber' ? 'text-accent-amber font-semibold' : 'text-down'}>
+                        <span className={winRateQuality === 'green' ? 'text-up font-semibold' : winRateQuality === 'amber' ? 'text-accent-blue font-semibold' : 'text-down'}>
                           {(row.hitRate * 100).toFixed(0)}%
                         </span>
                       </td>
                       <td className={`px-2 py-2 text-center border-b border-border/30 font-semibold ${row.sharpe > 0.3 ? 'text-up' : row.sharpe > 0 ? 'text-text-secondary' : 'text-down'}`}>
                         {row.sharpe.toFixed(2)}
                       </td>
-                      <td className="px-2 py-2 text-center border-b border-border/30 text-accent-amber font-bold">{row.rating}</td>
+                      <td className="px-2 py-2 text-center border-b border-border/30 text-accent-blue font-bold">{row.rating}</td>
                       <td className="px-2 py-2 text-center border-b border-border/30 text-text-dim">{row.n}</td>
                     </tr>
                   );
@@ -184,6 +181,9 @@ export function StepInTab() {
             <div className="text-lg font-bold text-text-primary font-mono">{activeEventNames.length}</div>
           </div>
         </div>
+        <BottomDescription>
+          Step-In asks: if you wait until D+{stepDay} to enter instead of trading immediately at Day 0, which assets still offer the best forward distribution by D+{fwdOffset}? Use it to compare delayed-entry opportunities, not to replace the main analogue ranking.
+        </BottomDescription>
       </ChartCard>
     </div>
   );

@@ -1,12 +1,14 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, Badge } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, Badge } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel } from '@/engine/returns';
 import { POIS } from '@/config/engine';
 import { CUSTOM_GROUPS } from '@/config/assets';
 import { nanMedian, nanPercentile, nanMin, nanMax } from '@/lib/math';
 import { fmtReturn } from '@/lib/format';
+import { alphaThemeColor } from '@/theme/chart';
+import { CHART_THEME } from '@/config/theme';
 
 export function BoxTab() {
   const { eventReturns, assetMeta, allLabels, events, activeEvents } = useDashboard();
@@ -92,10 +94,6 @@ export function BoxTab() {
           </div>
         }
       >
-        <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-          Each row uses a shared numeric axis within each horizon cell, so you can compare both sign and magnitude. The box shows the interquartile range, the center line is the median, and the whiskers show the full observed range.
-        </div>
-
         <div className="overflow-x-auto border-t border-border/40">
           <table className="w-full border-collapse text-2xs font-mono">
             <thead>
@@ -112,7 +110,7 @@ export function BoxTab() {
             </thead>
             <tbody>
               {boxData.map((row, index) => (
-                <tr key={row.asset} className="hover:bg-bg-cell/30 transition-colors table-row-hover" style={{ backgroundColor: index % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.15)' }}>
+                <tr key={row.asset} className="hover:bg-bg-cell/30 transition-colors table-row-hover" style={{ backgroundColor: index % 2 === 0 ? 'transparent' : alphaThemeColor('bgCell', '0.28') }}>
                   <td className="px-3 py-2.5 border-b border-border/30 text-text-secondary whitespace-nowrap sticky left-0 bg-inherit font-medium">
                     {displayLabel(assetMeta[row.asset], row.asset)}
                   </td>
@@ -139,15 +137,15 @@ export function BoxTab() {
                             style={{
                               left: `${scale(stats.q1)}%`,
                               width: `${Math.max(scale(stats.q3) - scale(stats.q1), 2)}%`,
-                              backgroundColor: stats.med >= 0 ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                              backgroundColor: stats.med >= 0 ? alphaThemeColor('up', '0.15') : alphaThemeColor('down', '0.15'),
                             }}
                           />
                           <div
                             className="absolute top-0.5 bottom-0.5 w-[2px] transition-colors"
                             style={{
                               left: `${scale(stats.med)}%`,
-                              backgroundColor: stats.med >= 0 ? '#22c55e' : '#ef4444',
-                              boxShadow: stats.med >= 0 ? '0 0 3px #22c55e40' : '0 0 3px #ef444440',
+                              backgroundColor: stats.med >= 0 ? CHART_THEME.up : CHART_THEME.down,
+                              boxShadow: stats.med >= 0 ? `0 0 3px ${alphaThemeColor('up', '0.25')}` : `0 0 3px ${alphaThemeColor('down', '0.25')}`,
                             }}
                           />
                           {stats.min < 0 && stats.max > 0 && (
@@ -167,6 +165,9 @@ export function BoxTab() {
             </tbody>
           </table>
         </div>
+        <BottomDescription>
+          Each row uses a shared numeric axis within each horizon cell, so you can compare both sign and magnitude. The box shows the interquartile range, the center line is the median, and the whiskers show the full observed range.
+        </BottomDescription>
       </ChartCard>
     </div>
   );

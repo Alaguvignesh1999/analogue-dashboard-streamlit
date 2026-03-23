@@ -6,6 +6,7 @@ import { TabBar } from '@/components/layout/TabBar';
 import { CardErrorBoundary } from '@/components/ui/ChartCard';
 import { useDashboard } from '@/store/dashboard';
 import { useDataLoader } from '@/hooks/useData';
+import { alphaThemeColor, THEME_COLORS } from '@/theme/chart';
 
 // Historical tabs
 import { EventsTab } from '@/components/tabs/historical/EventsTab';
@@ -77,8 +78,8 @@ function LoadingScreen() {
   return (
     <div className="h-screen flex flex-col items-center justify-center gap-5 bg-bg-primary">
       <div className="relative">
-        <div className="w-10 h-10 border-2 border-accent-teal/10 rounded-full" />
-        <div className="absolute inset-0 w-10 h-10 border-2 border-transparent border-t-accent-teal rounded-full animate-spin" />
+        <div className="w-10 h-10 rounded-full" style={{ border: `2px solid ${alphaThemeColor('uiAccent', '0.14')}` }} />
+        <div className="absolute inset-0 w-10 h-10 border-2 border-transparent rounded-full animate-spin" style={{ borderTopColor: THEME_COLORS.uiAccent }} />
       </div>
       <div className="text-center space-y-1.5">
         <div className="text-xs text-text-secondary font-medium tracking-wide">Loading Analogue Engine</div>
@@ -88,7 +89,7 @@ function LoadingScreen() {
       </div>
       {/* Shimmer progress bar */}
       <div className="w-48 h-0.5 bg-border/50 overflow-hidden rounded-full">
-        <div className="h-full bg-accent-teal/40 shimmer rounded-full" style={{ width: '60%' }} />
+        <div className="h-full shimmer rounded-full" style={{ width: '60%', backgroundColor: alphaThemeColor('uiAccent', '0.35') }} />
       </div>
     </div>
   );
@@ -103,7 +104,7 @@ export default function Dashboard() {
   const ActiveComponent = TAB_MAP[activeTab];
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-bg-primary">
+    <div className="h-screen flex flex-col overflow-hidden bg-bg-primary theme-transition">
       <Header />
       <TabBar />
       <main className="flex-1 overflow-y-auto">

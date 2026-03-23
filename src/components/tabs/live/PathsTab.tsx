@@ -1,29 +1,23 @@
 'use client';
 import { useMemo, useState, useEffect } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
+import { DiagnosticsStrip } from '@/components/ui/DiagnosticsStrip';
 import { displayLabel, unitLabel, poiRet } from '@/engine/returns';
-import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveScoringDay } from '@/engine/live';
+import { getLiveDisplayDay, getLiveDisplayDate } from '@/engine/live';
 import { filterScoresByActiveEvents, selectEvents, compositeReturn } from '@/engine/similarity';
 import { POIS, POST_WINDOW_TD } from '@/config/engine';
 import { nanMedian } from '@/lib/math';
 import { fmtReturn } from '@/lib/format';
+import { CHART_THEME } from '@/config/theme';
+import { dayZeroMarkerStyle, getEventLineStyle, THEME_FONTS, themedHeatColor, themeDashPattern, themeStrokeWidth } from '@/theme/chart';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, ResponsiveContainer, Legend,
 } from 'recharts';
 
-const PALETTE = ['#00e5ff', '#ff5252', '#69f0ae', '#b388ff', '#ffab40', '#ff80ab', '#40c4ff', '#ccff90', '#ffd740', '#ea80fc', '#84ffff', '#ff6e40', '#a7ffeb'];
-const AX_TICK = '#8a8a9a';
-const AX_LINE = '#2a2a3a';
-const GRID_CLR = '#1e1e22';
-
 function heatColor(value: number, maxAbs: number, isRates: boolean): string {
-  if (Number.isNaN(value)) return 'transparent';
-  const intensity = Math.min(Math.abs(value) / (maxAbs + 1e-9), 1);
-  const alpha = 0.15 + intensity * 0.55;
-  const isGood = isRates ? value < 0 : value > 0;
-  return isGood ? `rgba(34,197,94,${alpha.toFixed(2)})` : `rgba(239,68,68,${alpha.toFixed(2)})`;
+  return themedHeatColor(value, maxAbs, !isRates);
 }
 
 export function PathsTab() {
@@ -45,12 +39,12 @@ export function PathsTab() {
 
   const activeScores = useMemo(() => filterScoresByActiveEvents(scores, activeEvents), [activeEvents, scores]);
   const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
-  const dayN = getEffectiveScoringDay(live, [selectedAsset]);
-  const displayDayN = getLiveScoringDay(live);
-  const effectiveDate = getEffectiveScoringDate(live, [selectedAsset]);
+  const displayDayN = getLiveDisplayDay(live);
+  const displayDate = getLiveDisplayDate(live);
   const meta = assetMeta[selectedAsset];
   const isRates = meta?.is_rates_bp || false;
   const unit = unitLabel(meta);
+  const dayZeroStyle = dayZeroMarkerStyle();
 
   const chartData = useMemo(() => {
     const offsets = Array.from({ length: POST_WINDOW_TD + 1 }, (_, index) => index);
@@ -72,14 +66,14 @@ export function PathsTab() {
   }, [activeScores, eventReturns, selectedAsset, selectedEvents, live, displayDayN]);
 
   const fwdHeatmap = useMemo(() => {
-    const futurePois = POIS.filter((poi) => poi.offset > dayN);
+    const futurePois = POIS.filter((poi) => poi.offset > displayDayN);
     if (futurePois.length === 0 || selectedEvents.length === 0) return null;
 
     let maxAbs = 0;
-    const rows = futurePois.map((poi) => {
-      const values: number[] = [];
-      for (const eventName of selectedEvents) {
-        const startValue = poiRet(eventReturns, selectedAsset, eventName, dayN);
+      const rows = futurePois.map((poi) => {
+        const values: number[] = [];
+        for (const eventName of selectedEvents) {
+        const startValue = poiRet(eventReturns, selectedAsset, eventName, displayDayN);
         const finishValue = poiRet(eventReturns, selectedAsset, eventName, poi.offset);
         if (!Number.isNaN(startValue) && !Number.isNaN(finishValue)) values.push(finishValue - startValue);
       }
@@ -89,7 +83,7 @@ export function PathsTab() {
     });
 
     return { rows, maxAbs: maxAbs || 5 };
-  }, [eventReturns, selectedAsset, selectedEvents, dayN]);
+  }, [eventReturns, selectedAsset, selectedEvents, displayDayN]);
 
   const chartStats = useMemo(() => {
     if (selectedEvents.length === 0 || chartData.length === 0) return { range: 0, current: 0 };
@@ -104,7 +98,7 @@ export function PathsTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title={`Path - ${displayLabel(meta, selectedAsset)}`}
-        subtitle={`${selectedEvents.length} analogues | effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} | display D+${displayDayN} | ${unit}`}
+        subtitle={`${selectedEvents.length} analogues | live D+${displayDayN}${displayDate ? ` (${displayDate})` : ''} | ${unit}`}
         controls={
           <div className="flex items-center gap-2">
             <Select label="" value={selectedClass} onChange={setSelectedClass} options={allClasses.map((groupName) => ({ value: groupName, label: groupName }))} />
@@ -118,63 +112,80 @@ export function PathsTab() {
           </div>
         ) : (
           <>
-            <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-              The orange line is the live display path through the latest available calendar day, while the score marker shows the effective trading day used for matching. The composite line is the weighted analogue blend for the same asset and event window.
-            </div>
+            <DiagnosticsStrip
+              live={live}
+              labels={[selectedAsset]}
+              scoringMode="live-sim"
+              extra={<span>Path asset: {displayLabel(meta, selectedAsset)}</span>}
+            />
 
             <div className="px-4 pt-4 grid grid-cols-3 gap-3">
-              <StatBox label="Live Path" value={`${chartStats.current > 0 ? '+' : ''}${chartStats.current.toFixed(1)}`} color={chartStats.current >= 0 ? '#22c55e' : '#ef4444'} />
-              <StatBox label="Range" value={`+/-${chartStats.range.toFixed(1)}`} color="#00d4aa" />
-              <StatBox label="Analogues" value={selectedEvents.length} color="#ffffff" />
+              <StatBox label="Live Path" value={`${chartStats.current > 0 ? '+' : ''}${chartStats.current.toFixed(1)}`} color={chartStats.current >= 0 ? CHART_THEME.up : CHART_THEME.down} />
+              <StatBox label="Range" value={`+/-${chartStats.range.toFixed(1)}`} color={CHART_THEME.accentTeal} />
+              <StatBox label="Analogues" value={selectedEvents.length} sub={displayDate || '--'} color={CHART_THEME.textPrimary} />
             </div>
 
             <div className="h-[400px] p-2">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 16, right: 12, bottom: 16, left: 8 }}>
-                  <CartesianGrid stroke={GRID_CLR} strokeDasharray="2 8" />
+                  <CartesianGrid stroke={CHART_THEME.grid} strokeDasharray="2 8" vertical={false} />
                   <XAxis
                     dataKey="offset"
-                    stroke={AX_LINE}
-                    tick={{ fontSize: 10, fill: AX_TICK, fontFamily: 'JetBrains Mono' }}
+                    stroke={CHART_THEME.axisLine}
+                    tick={{ fontSize: 10, fill: CHART_THEME.textMuted, fontFamily: THEME_FONTS.mono }}
                     tickFormatter={(value) => `D+${value}`}
                   />
                   <YAxis
-                    stroke={AX_LINE}
-                    tick={{ fontSize: 10, fill: AX_TICK, fontFamily: 'JetBrains Mono' }}
+                    stroke={CHART_THEME.axisLine}
+                    tick={{ fontSize: 10, fill: CHART_THEME.textMuted, fontFamily: THEME_FONTS.mono }}
                     tickFormatter={(value: number) => `${value > 0 ? '+' : ''}${value.toFixed(0)}`}
                     width={48}
                   />
                   <Tooltip
-                    contentStyle={{ background: 'rgba(12,12,18,0.96)', border: '1px solid #2a2a3a', borderRadius: 2, fontSize: 11, fontFamily: 'JetBrains Mono' }}
+                    contentStyle={{ background: CHART_THEME.tooltipBg, border: `1px solid ${CHART_THEME.gridBright}`, borderRadius: 2, fontSize: 11, fontFamily: THEME_FONTS.mono, color: CHART_THEME.textPrimary }}
                     labelFormatter={(value) => `Day +${value}`}
                   />
                   <Legend
                     height={32}
-                    wrapperStyle={{ paddingTop: '8px', fontSize: 11, color: '#a1a1aa', fontFamily: 'JetBrains Mono' }}
+                    wrapperStyle={{ paddingTop: '8px', fontSize: 11, color: CHART_THEME.textSecondary, fontFamily: THEME_FONTS.mono }}
                     iconType="line"
                   />
-                  <ReferenceLine y={0} stroke="#3a3a4e" strokeWidth={1} />
-                  <ReferenceLine x={dayN} stroke="#ffab40" strokeDasharray="3 3" label={{ value: 'Score', position: 'top', fill: '#ffab40', fontSize: 10 }} />
-
-                  {selectedEvents.map((eventName, index) => (
-                    <Line
-                      key={eventName}
-                      dataKey={eventName}
-                      stroke={PALETTE[index % PALETTE.length]}
-                      strokeWidth={1}
-                      strokeOpacity={0.6}
-                      dot={false}
-                      connectNulls={false}
-                      isAnimationActive={false}
-                    />
-                  ))}
-                  <Line dataKey="Composite" stroke="#00d4aa" strokeWidth={2.5} strokeDasharray="6 3" dot={false} connectNulls={false} isAnimationActive={false} name="Composite" />
+                  <ReferenceLine y={0} stroke={CHART_THEME.zero} strokeWidth={1} />
+                  <ReferenceLine
+                    x={0}
+                    stroke={dayZeroStyle.stroke}
+                    strokeDasharray={dayZeroStyle.strokeDasharray}
+                    strokeWidth={dayZeroStyle.strokeWidth}
+                  />
+                  <ReferenceLine
+                    x={displayDayN}
+                    stroke={CHART_THEME.live}
+                    strokeDasharray={themeDashPattern('3 3')}
+                    label={{ value: `D+${displayDayN}`, position: 'top', fill: CHART_THEME.live, fontSize: 10 }}
+                  />
+                  {selectedEvents.map((eventName, index) => {
+                    const lineStyle = getEventLineStyle(eventName, index, 1);
+                    return (
+                      <Line
+                        key={eventName}
+                        dataKey={eventName}
+                        stroke={lineStyle.color}
+                        strokeWidth={lineStyle.strokeWidth}
+                        strokeOpacity={0.85}
+                        dot={false}
+                        connectNulls={false}
+                        strokeDasharray={lineStyle.strokeDasharray}
+                        isAnimationActive={false}
+                      />
+                    );
+                  })}
+                  <Line dataKey="Composite" stroke={CHART_THEME.accentTeal} strokeWidth={themeStrokeWidth(2.5)} strokeDasharray={themeDashPattern('6 3')} dot={false} connectNulls={false} isAnimationActive={false} name="Composite" />
                   {live.returns?.[selectedAsset] && (
                     <Line
                       dataKey="__live__"
-                      stroke="#ffab40"
-                      strokeWidth={2.5}
-                      dot={{ r: 2.5, fill: '#ffab40', strokeWidth: 0 }}
+                      stroke={CHART_THEME.live}
+                      strokeWidth={themeStrokeWidth(2.5)}
+                      dot={{ r: 2.5, fill: CHART_THEME.live, strokeWidth: 0 }}
                       connectNulls={false}
                       isAnimationActive={false}
                       name="Live"
@@ -183,12 +194,15 @@ export function PathsTab() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+            <BottomDescription>
+              The orange live line and orange vertical marker use the same live D+N logic as Overlay, so both tabs show the same current live point.
+            </BottomDescription>
           </>
         )}
       </ChartCard>
 
       {fwdHeatmap && selectedEvents.length > 0 && (
-        <ChartCard title="Forward Returns" subtitle={`Median forward from effective D+${dayN} to each POI`}>
+        <ChartCard title="Forward Returns" subtitle={`Median forward from live D+${displayDayN} to future POIs`}>
           <div className="p-4 flex gap-1.5 flex-wrap">
             {fwdHeatmap.rows.map((row) => (
               <div

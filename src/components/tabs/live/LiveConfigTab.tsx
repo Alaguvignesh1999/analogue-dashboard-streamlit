@@ -7,6 +7,7 @@ import { ALL_TAGS } from '@/config/events';
 import { DEFAULT_LIVE_SIM_ASSETS, TRIGGER_ASSET } from '@/config/engine';
 import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
 import { displayLabel } from '@/engine/returns';
+import { alphaThemeColor, THEME_COLORS } from '@/theme/chart';
 
 export function LiveConfigTab() {
   const { live, provenance, allLabels, assetMeta, similarityAssets, setSimilarityAssets, setLive, resetLive, setProvenance } = useDashboard();
@@ -288,9 +289,14 @@ export function LiveConfigTab() {
                     }}
                     className={`px-2.5 py-0.5 text-[10px] border rounded-sm transition-all ${
                       enabled
-                        ? 'bg-[#00e5ff]/10 text-[#00e5ff] border-[#00e5ff]/30'
-                        : 'bg-transparent text-[#4a4a5a] border-[#1e1e2e] hover:text-[#6a6a7a]'
+                        ? 'text-text-primary'
+                        : 'bg-transparent text-text-dim border-border hover:text-text-muted'
                     }`}
+                    style={enabled ? {
+                      borderColor: THEME_COLORS.controlActiveBorder,
+                      backgroundColor: alphaThemeColor('controlActiveBg', '0.08'),
+                      color: THEME_COLORS.textPrimary,
+                    } : undefined}
                   >
                     {tag}
                   </button>
@@ -332,9 +338,14 @@ export function LiveConfigTab() {
                     }}
                     className={`text-left px-2.5 py-2 rounded-sm border transition-all ${
                       selected
-                        ? 'border-accent-teal/30 bg-accent-teal/10 text-accent-teal'
+                        ? 'text-text-primary'
                         : 'border-border/40 bg-bg-cell/30 text-text-secondary hover:border-border/70'
                     }`}
+                    style={selected ? {
+                      borderColor: THEME_COLORS.controlActiveBorder,
+                      backgroundColor: alphaThemeColor('controlActiveBg', '0.08'),
+                      color: THEME_COLORS.textPrimary,
+                    } : undefined}
                   >
                     <div className="text-2xs font-medium">{displayLabel(assetMeta[asset], asset)}</div>
                     <div className="text-[10px] opacity-70 mt-1">{assetMeta[asset]?.class || 'Unknown'}</div>
@@ -344,35 +355,37 @@ export function LiveConfigTab() {
             </div>
           </Field>
 
-          <div className="p-4 border border-[#1a1a2e] bg-[#0a0a10]">
+          <div className="p-4 border border-border/60 bg-bg-primary/70 rounded-sm">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] uppercase tracking-widest text-[#4a4a5a]">{TRIGGER_ASSET}</span>
+              <span className="text-[10px] uppercase tracking-widest text-text-dim">{TRIGGER_ASSET}</span>
               <div className="flex items-center gap-2">
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={triggerOverride}
                     onChange={(event) => setTriggerOverride(event.target.checked)}
-                    className="w-3 h-3 accent-[#ffab40]"
+                    className="w-3 h-3"
+                    style={{ accentColor: THEME_COLORS.controlActiveBg }}
                   />
-                  <span className="text-[10px] text-[#ffab40]">Manual override</span>
+                  <span className="text-[10px] text-text-primary">Manual override</span>
                 </label>
                 {!triggerOverride && (
                   <button
                     onClick={() => fetchBothPrices(live.day0 || undefined)}
-                    className="text-[10px] text-[#00e5ff] hover:text-[#00e5ff]/70"
+                    className="text-[10px] hover:opacity-75"
+                    style={{ color: THEME_COLORS.controlActiveBg }}
                   >
                     Refresh
                   </button>
                 )}
-                {priceStatus && <span className="text-[10px] text-[#ffab40]">{priceStatus}</span>}
+                {priceStatus && <span className="text-[10px] text-live">{priceStatus}</span>}
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="text-[9px] text-[#3a3a4a] uppercase tracking-wider mb-1">
-                  Day 0 Price <span className="text-[#00e5ff]">(used for scoring)</span>
+                <div className="text-[9px] text-text-dim uppercase tracking-wider mb-1">
+                  Day 0 Price <span className="text-text-primary">(used for scoring)</span>
                 </div>
                 {triggerOverride ? (
                   <input
@@ -384,12 +397,12 @@ export function LiveConfigTab() {
                   />
                 ) : (
                   <div>
-                    <div className="text-xl font-bold text-[#e0e0e8]">
+                    <div className="text-xl font-bold text-text-primary">
                       ${day0Price?.toFixed(2) ?? '--'}
-                      {day0PriceDate && <span className="text-[10px] text-[#3a3a4a] ml-2 font-normal">{day0PriceDate}</span>}
+                      {day0PriceDate && <span className="text-[10px] text-text-dim ml-2 font-normal">{day0PriceDate}</span>}
                     </div>
                     {day0ResolutionNote && (
-                      <div className="text-[10px] text-[#ffab40] mt-1 leading-snug">
+                      <div className="text-[10px] text-live mt-1 leading-snug">
                         {day0ResolutionNote}
                       </div>
                     )}
@@ -398,15 +411,15 @@ export function LiveConfigTab() {
               </div>
 
               <div>
-                <div className="text-[9px] text-[#3a3a4a] uppercase tracking-wider mb-1">
-                  Current Price <span className="text-[#6a6a7a]">(reference)</span>
+                <div className="text-[9px] text-text-dim uppercase tracking-wider mb-1">
+                  Current Price <span className="text-text-muted">(reference)</span>
                 </div>
-                <div className="text-xl font-bold text-[#6a6a7a]">
+                <div className="text-xl font-bold text-text-secondary">
                   ${currentPrice?.toFixed(2) ?? '--'}
-                  {currentPriceDate && <span className="text-[10px] text-[#3a3a4a] ml-2 font-normal">{currentPriceDate}</span>}
+                  {currentPriceDate && <span className="text-[10px] text-text-dim ml-2 font-normal">{currentPriceDate}</span>}
                 </div>
                 {day0Price && currentPrice && (
-                  <div className={`text-[10px] mt-0.5 ${currentPrice > day0Price ? 'text-[#ff5252]' : 'text-[#69f0ae]'}`}>
+                  <div className={`text-[10px] mt-0.5 ${currentPrice > day0Price ? 'text-down' : 'text-up'}`}>
                     {((currentPrice / day0Price - 1) * 100).toFixed(1)}% since Day 0
                   </div>
                 )}
@@ -439,23 +452,23 @@ export function LiveConfigTab() {
             </Field>
           </div>
 
-          <div className="flex items-center gap-3 pt-3 border-t border-[#1a1a2e]">
+          <div className="flex items-center gap-3 pt-3 border-t border-border/60">
             <Button onClick={handlePull} disabled={pulling}>
               {pulling ? 'Pulling...' : 'Refresh Live Data'}
             </Button>
             <Button onClick={generateMockLiveData} variant="secondary">Demo Mode</Button>
             {status && (
-              <span className={`text-xs ${status.startsWith('Live pull failed') ? 'text-[#ffab40]' : 'text-[#69f0ae]'}`}>
+              <span className={`text-xs ${status.startsWith('Live pull failed') ? 'text-live' : 'text-up'}`}>
                 {status}
               </span>
             )}
           </div>
 
           {live.dayN !== null && (
-            <div className="p-3 border border-[#1a1a2e] bg-[#0a0a10] mt-2">
+            <div className="p-3 border border-border/60 bg-bg-primary/70 mt-2 rounded-sm">
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 rounded-full bg-[#ffab40] animate-pulse" />
-                <span className="text-xs text-[#ffab40] font-medium">
+                <div className="w-2 h-2 rounded-full bg-live animate-pulse" />
+                <span className="text-xs text-live font-medium">
               {provenance.liveSource === 'demo'
                 ? 'Demo event active'
                 : live.requestMode === 'shared'
@@ -463,27 +476,25 @@ export function LiveConfigTab() {
                   : 'Private live scenario active'}
             </span>
           </div>
-          <div className="grid grid-cols-5 gap-3 text-[10px] text-[#6a6a7a]">
-            <div>Day+{live.dayN}</div>
-            <div>Trading D+{live.tradingDayN ?? '--'}</div>
-            <div>Analysis D+{analysisDay}</div>
-            <div>Effective D+{effectiveScoringDay ?? '--'}</div>
+          <div className="grid grid-cols-3 gap-3 text-[10px] text-text-muted">
+            <div>Live D+{analysisDay}</div>
             <div>{Object.keys(live.returns || {}).length} assets</div>
+            <div>Mode: {live.requestMode || (provenance.liveSource === 'demo' ? 'demo' : '--')}</div>
           </div>
-          <div className="grid grid-cols-2 gap-3 text-[10px] text-[#6a6a7a] mt-2">
+          <div className="grid grid-cols-2 gap-3 text-[10px] text-text-muted mt-2">
             <div>{TRIGGER_ASSET}: ${live.trigger?.toFixed(2)}</div>
-            <div>Analysis date: {analysisDate || effectiveScoringDate || '--'}</div>
+            <div>Live date: {analysisDate || '--'}</div>
           </div>
           {liveAnchorNote && (
-            <div className="mt-2 text-[10px] text-[#ffab40]">
+            <div className="mt-2 text-[10px] text-live">
               {liveAnchorNote}
             </div>
           )}
-          <div className="mt-3 p-3 border border-[#1a1a2e] bg-[#05050a]">
+          <div className="mt-3 p-3 border border-border/60 bg-bg-panel/70 rounded-sm">
             <div className="flex items-center justify-between gap-3 mb-2">
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-[#4a4a5a]">Analysis Day Override</div>
-                <div className="text-[10px] text-[#6a6a7a] mt-1">
+                <div className="text-[10px] uppercase tracking-wider text-text-dim">Analysis Day Override</div>
+                <div className="text-[10px] text-text-muted mt-1">
                   Pretend the live event is only at an earlier day without re-pulling data.
                 </div>
               </div>
@@ -493,9 +504,9 @@ export function LiveConfigTab() {
                     type="checkbox"
                     checked={analysisOverrideEnabled}
                     onChange={(event) => setLive({ analysisDayN: event.target.checked ? maxAnalysisDay : null })}
-                    className="w-3 h-3 accent-[#ffab40]"
+                    className="w-3 h-3 accent-live"
                   />
-                  <span className="text-[10px] text-[#ffab40]">Enable override</span>
+                  <span className="text-[10px] text-live">Enable override</span>
                 </label>
                 {analysisOverrideEnabled && (
                   <Button size="xs" variant="ghost" onClick={() => setLive({ analysisDayN: null })}>
@@ -514,25 +525,23 @@ export function LiveConfigTab() {
                 step={1}
                 suffix="d"
               />
-              <div className="text-[10px] text-[#6a6a7a]">
+              <div className="text-[10px] text-text-muted">
                 {analysisOverrideEnabled
-                  ? `Override active: scoring behaves as if we are only at D+${analysisDay}${analysisDate ? ` (${analysisDate})` : ''}.`
-                  : `Latest live basis remains D+${maxAnalysisDay}${effectiveScoringDate ? ` (${effectiveScoringDate})` : ''}.`}
+                  ? `Override active: analysis behaves as if we are only at D+${analysisDay}${analysisDate ? ` (${analysisDate})` : ''}.`
+                  : `Latest live state remains D+${maxAnalysisDay}${analysisDate ? ` (${analysisDate})` : ''}.`}
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3 text-[10px] text-[#6a6a7a] mt-2">
-            <div>Mode: {live.requestMode || (provenance.liveSource === 'demo' ? 'demo' : '--')}</div>
-            <div>Score date: {effectiveScoringDate || '--'}</div>
+          <div className="grid grid-cols-2 gap-3 text-[10px] text-text-muted mt-2">
             <div>Snapshot: {live.snapshotDate || '--'}</div>
             <div>Warnings: {live.warnings.length}</div>
           </div>
-          <div className="grid grid-cols-2 gap-3 text-[10px] text-[#6a6a7a] mt-2">
+          <div className="grid grid-cols-2 gap-3 text-[10px] text-text-muted mt-2">
             <div>As of: {live.asOfDate ? new Date(live.asOfDate).toLocaleDateString() : '--'}</div>
             <div>Sim assets in scoring: {similarityAssets.length}</div>
           </div>
           {live.warnings.length > 0 && (
-            <div className="mt-2 text-[10px] text-[#ffab40]">
+            <div className="mt-2 text-[10px] text-live">
               {live.warnings.join(' | ')}
             </div>
           )}
@@ -547,7 +556,7 @@ export function LiveConfigTab() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[10px] text-[#4a4a5a] mb-1 uppercase tracking-wider">{label}</label>
+      <label className="block text-[10px] text-text-dim mb-1 uppercase tracking-wider">{label}</label>
       {children}
     </div>
   );

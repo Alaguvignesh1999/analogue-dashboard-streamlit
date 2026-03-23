@@ -1,6 +1,8 @@
 'use client';
 
 import { ReactNode, Component, ErrorInfo } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { alphaThemeColor, THEME_COLORS } from '@/theme/chart';
 
 /* ─────────────────────── Error Boundary ─────────────────────── */
 interface EBProps { children: ReactNode; fallback?: ReactNode }
@@ -17,7 +19,12 @@ export class CardErrorBoundary extends Component<EBProps, EBState> {
           <div className="text-xs text-down/70 font-medium">Component Error</div>
           <div className="text-2xs text-text-dim max-w-xs">{this.state.error}</div>
           <button onClick={() => this.setState({ hasError: false, error: '' })}
-            className="mt-2 px-3 py-1 text-2xs text-accent-teal border border-accent-teal/20 hover:bg-accent-teal/10 transition-colors">
+            className="mt-2 px-3 py-1 text-2xs border transition-colors"
+            style={{
+              color: THEME_COLORS.controlActiveBg,
+              borderColor: alphaThemeColor('controlActiveBorder', '0.3'),
+              backgroundColor: alphaThemeColor('controlActiveBg', '0.08'),
+            }}>
             Retry
           </button>
         </div>
@@ -46,10 +53,10 @@ export function ChartCard({ title, subtitle, controls, children, className = '',
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/60">
             <div className="min-w-0">
               {title && (
-                <h3 className="text-xs font-semibold text-text-primary tracking-wide">{title}</h3>
+                <h3 className="text-xs font-semibold font-mono text-text-primary tracking-[0.08em] uppercase">{title}</h3>
               )}
               {subtitle && (
-                <p className="text-2xs text-text-dim mt-0.5 truncate">{subtitle}</p>
+                <p className="text-2xs text-text-dim mt-0.5 truncate font-mono">{subtitle}</p>
               )}
             </div>
             {controls && <div className="flex items-center gap-2 shrink-0 ml-3">{controls}</div>}
@@ -60,8 +67,8 @@ export function ChartCard({ title, subtitle, controls, children, className = '',
             <div className="absolute inset-0 z-10 flex items-center justify-center glass">
               <div className="flex items-center gap-2.5">
                 <div className="relative w-5 h-5">
-                  <div className="absolute inset-0 border-2 border-accent-teal/20 rounded-full" />
-                  <div className="absolute inset-0 border-2 border-transparent border-t-accent-teal rounded-full animate-spin" />
+                  <div className="absolute inset-0 border-2 rounded-full" style={{ borderColor: alphaThemeColor('uiAccent', '0.16') }} />
+                  <div className="absolute inset-0 border-2 border-transparent rounded-full animate-spin" style={{ borderTopColor: THEME_COLORS.uiAccent }} />
                 </div>
                 <span className="text-xs text-text-muted">Computing...</span>
               </div>
@@ -74,6 +81,17 @@ export function ChartCard({ title, subtitle, controls, children, className = '',
   );
 }
 
+export function BottomDescription({ children, className = '' }: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`px-4 py-3 text-2xs text-text-dim border-t border-border/40 bg-bg-cell/20 ${className}`}>
+      {children}
+    </div>
+  );
+}
+
 /* ─────────────────────── Stat Box ─────────────────────── */
 export function StatBox({ label, value, sub, color, className = '' }: {
   label: string;
@@ -83,12 +101,15 @@ export function StatBox({ label, value, sub, color, className = '' }: {
   className?: string;
 }) {
   return (
-    <div className={`stat-card p-3 bg-bg-cell/60 border border-border/50 rounded-sm ${className}`}>
-      <div className="text-3xs text-text-dim uppercase tracking-wider font-medium">{label}</div>
-      <div className="text-sm font-bold mt-1 font-mono leading-none" style={{ color: color || '#e4e4e7' }}>
+    <div
+      className={`stat-card p-3 bg-bg-cell/60 border border-border/50 rounded-sm ${className}`}
+      style={{ ['--stat-accent' as any]: color || THEME_COLORS.uiAccent }}
+    >
+      <div className="text-3xs text-text-dim uppercase tracking-[0.08em] font-medium font-mono">{label}</div>
+      <div className="text-sm font-bold mt-1 font-mono leading-none" style={{ color: color || THEME_COLORS.textPrimary }}>
         {value}
       </div>
-      {sub && <div className="text-3xs text-text-dim mt-1">{sub}</div>}
+      {sub && <div className="text-3xs text-text-dim mt-1 font-mono">{sub}</div>}
     </div>
   );
 }
@@ -105,20 +126,25 @@ export function Select({
 }) {
   return (
     <div className={`flex items-center gap-1.5 ${className}`}>
-      {label && <span className="text-2xs text-text-dim shrink-0">{label}</span>}
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="bg-bg-cell border border-border/60 text-xs text-text-primary px-2 py-1 rounded-sm
-                   focus:outline-none focus:border-accent-teal/40 focus:ring-1 focus:ring-accent-teal/10
-                   cursor-pointer transition-colors hover:border-border-bright appearance-none
-                   bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20d%3D%22M3%204.5l3%203%203-3%22%20fill%3D%22none%22%20stroke%3D%22%2371717a%22%20stroke-width%3D%221.5%22%2F%3E%3C%2Fsvg%3E')]
-                   bg-[length:12px_12px] bg-[right_6px_center] bg-no-repeat pr-6"
-      >
-        {options.map(o => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
+      {label && <span className="text-2xs text-text-dim shrink-0 font-mono uppercase tracking-[0.08em]">{label}</span>}
+      <div className="relative">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="bg-bg-cell border border-border/60 text-xs text-text-primary px-2 py-1 rounded-sm font-mono
+                     focus:outline-none
+                     cursor-pointer transition-colors hover:border-border-bright appearance-none pr-6"
+          style={{ backgroundColor: THEME_COLORS.controlBg, borderColor: alphaThemeColor('border', '0.75') }}
+        >
+          {options.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        <ChevronDown
+          size={12}
+          className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-text-muted"
+        />
+      </div>
     </div>
   );
 }
@@ -137,19 +163,31 @@ export function SliderControl({
 }) {
   return (
     <div className="flex items-center gap-2">
-      {label && <span className="text-2xs text-text-dim shrink-0">{label}</span>}
+      {label && <span className="text-2xs text-text-dim shrink-0 font-mono uppercase tracking-[0.08em]">{label}</span>}
       <div className="relative w-28 h-5 flex items-center">
         <div className="absolute h-[3px] w-full bg-border/80 rounded-full" />
-        <div className="absolute h-[3px] rounded-full bg-accent-teal/40"
-          style={{ width: `${((value - min) / (max - min)) * 100}%` }} />
+        <div
+          className="absolute h-[3px] rounded-full"
+          style={{
+            width: `${((value - min) / (max - min)) * 100}%`,
+            backgroundColor: alphaThemeColor('uiAccent', '0.35'),
+          }}
+        />
         <input
           type="range" value={value}
           onChange={(e) => onChange(parseFloat(e.target.value))}
           min={min} max={max} step={step}
           className="absolute w-full h-5 opacity-0 cursor-pointer z-10"
         />
-        <div className="absolute w-3 h-3 bg-accent-teal rounded-full shadow-glow-teal pointer-events-none border border-accent-teal/50"
-          style={{ left: `calc(${((value - min) / (max - min)) * 100}% - 6px)` }} />
+        <div
+          className="absolute w-3 h-3 rounded-full pointer-events-none border"
+          style={{
+            left: `calc(${((value - min) / (max - min)) * 100}% - 6px)`,
+            backgroundColor: THEME_COLORS.uiAccent,
+            borderColor: alphaThemeColor('uiAccent', '0.45'),
+            boxShadow: `0 0 0 1px ${alphaThemeColor('uiAccent', '0.08')}`,
+          }}
+        />
       </div>
       <span className="text-2xs text-text-muted w-14 text-right font-mono tabular-nums">
         {value}{suffix}
@@ -175,18 +213,35 @@ export function Button({
     md: 'px-4 py-2 text-sm',
   };
   const variants = {
-    primary: 'bg-accent-teal/10 text-accent-teal border border-accent-teal/25 hover:bg-accent-teal/20 hover:border-accent-teal/40 active:bg-accent-teal/25',
-    secondary: 'bg-bg-cell text-text-secondary border border-border hover:bg-bg-hover hover:text-text-primary active:bg-bg-cell',
-    ghost: 'text-text-muted hover:text-text-secondary hover:bg-bg-hover active:bg-bg-cell border border-transparent',
-    danger: 'bg-down/10 text-down border border-down/25 hover:bg-down/20 active:bg-down/25',
+    primary: {
+      backgroundColor: THEME_COLORS.controlActiveBg,
+      color: THEME_COLORS.controlActiveText,
+      borderColor: THEME_COLORS.controlActiveBorder,
+    },
+    secondary: {
+      backgroundColor: THEME_COLORS.controlBg,
+      color: THEME_COLORS.textSecondary,
+      borderColor: alphaThemeColor('border', '0.75'),
+    },
+    ghost: {
+      backgroundColor: 'transparent',
+      color: THEME_COLORS.textMuted,
+      borderColor: 'transparent',
+    },
+    danger: {
+      backgroundColor: alphaThemeColor('down', '0.10'),
+      color: THEME_COLORS.down,
+      borderColor: alphaThemeColor('down', '0.25'),
+    },
   };
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`font-medium transition-all duration-150 rounded-sm
-        disabled:opacity-35 disabled:cursor-not-allowed disabled:pointer-events-none
-        ${sizes[size]} ${variants[variant]} ${className}`}
+      className={`font-mono font-medium tracking-[0.05em] uppercase transition-all duration-150 rounded-sm
+        disabled:opacity-35 disabled:cursor-not-allowed disabled:pointer-events-none hover:opacity-95
+        ${sizes[size]} border ${className}`}
+      style={variants[variant]}
     >
       {children}
     </button>
@@ -224,7 +279,7 @@ export function Badge({ children, color = 'teal', className = '' }: {
     dim: 'bg-bg-hover text-text-dim border-border',
   };
   return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 text-3xs font-medium border rounded-sm ${colors[color]} ${className}`}>
+    <span className={`inline-flex items-center px-1.5 py-0.5 text-3xs font-mono font-medium uppercase tracking-[0.08em] border rounded-sm ${colors[color]} ${className}`}>
       {children}
     </span>
   );

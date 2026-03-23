@@ -9,6 +9,8 @@ import {
   getHistoricalCoverageRange,
   getTriggerPriceForDate,
 } from '@/engine/customEvents';
+import { CHART_THEME } from '@/config/theme';
+import { alphaThemeColor, THEME_COLORS } from '@/theme/chart';
 
 const TAG_CONFIG: Record<string, { color: 'amber' | 'red' | 'green' | 'teal' | 'blue' | 'purple' }> = {
   energy_shock: { color: 'amber' },
@@ -16,6 +18,14 @@ const TAG_CONFIG: Record<string, { color: 'amber' | 'red' | 'green' | 'teal' | '
   shipping_disruption: { color: 'teal' },
   sanctions: { color: 'green' },
   pandemic: { color: 'blue' },
+};
+
+const TAG_BAR_COLOR: Record<string, string> = {
+  energy_shock: alphaThemeColor('accentAmber', '0.65'),
+  military_conflict: alphaThemeColor('down', '0.7'),
+  shipping_disruption: alphaThemeColor('live', '0.7'),
+  sanctions: alphaThemeColor('up', '0.7'),
+  pandemic: alphaThemeColor('accentBlue', '0.7'),
 };
 
 const AVAILABLE_TAGS = Object.keys(TAG_CONFIG);
@@ -227,9 +237,14 @@ export function EventsTab() {
                     }}
                     className={`px-2.5 py-0.5 text-[10px] border rounded-sm transition-all ${
                       selected
-                        ? 'bg-[#00e5ff]/10 text-[#00e5ff] border-[#00e5ff]/30'
-                        : 'bg-transparent text-[#4a4a5a] border-[#1e1e2e] hover:text-[#6a6a7a]'
+                        ? 'text-text-primary'
+                        : 'bg-transparent text-text-dim border-border/60 hover:text-text-muted'
                     }`}
+                    style={selected ? {
+                      borderColor: THEME_COLORS.controlActiveBorder,
+                      backgroundColor: alphaThemeColor('controlActiveBg', '0.08'),
+                      color: THEME_COLORS.textPrimary,
+                    } : undefined}
                   >
                     {tag}
                   </button>
@@ -246,7 +261,7 @@ export function EventsTab() {
               </div>
               <Button onClick={handleAddCustomEvent} size="xs">Apply Event Update</Button>
             </div>
-            {customStatus && <div className="text-2xs text-accent-teal">{customStatus}</div>}
+            {customStatus && <div className="text-2xs text-text-primary">{customStatus}</div>}
           </div>
 
           <div className="max-h-[520px] overflow-y-auto space-y-2">
@@ -267,7 +282,8 @@ export function EventsTab() {
                     type="checkbox"
                     checked={active}
                     onChange={() => toggleEvent(event.name)}
-                    className="w-4 h-4 mt-0.5 accent-accent-teal cursor-pointer flex-shrink-0"
+                    className="w-4 h-4 mt-0.5 cursor-pointer flex-shrink-0"
+                    style={{ accentColor: THEME_COLORS.controlActiveBg }}
                     aria-label={`Toggle ${event.name}`}
                   />
 
@@ -332,9 +348,14 @@ export function EventsTab() {
                                 }}
                                 className={`px-2.5 py-0.5 text-[10px] border rounded-sm transition-all ${
                                   selected
-                                    ? 'bg-[#00e5ff]/10 text-[#00e5ff] border-[#00e5ff]/30'
-                                    : 'bg-transparent text-[#4a4a5a] border-[#1e1e2e] hover:text-[#6a6a7a]'
+                                    ? 'text-text-primary'
+                                    : 'bg-transparent text-text-dim border-border/60 hover:text-text-muted'
                                 }`}
+                                style={selected ? {
+                                  borderColor: THEME_COLORS.controlActiveBorder,
+                                  backgroundColor: alphaThemeColor('controlActiveBg', '0.08'),
+                                  color: THEME_COLORS.textPrimary,
+                                } : undefined}
                               >
                                 {tag}
                               </button>
@@ -378,7 +399,7 @@ export function EventsTab() {
 
                   {active && (
                     <div className="flex-shrink-0 mt-1">
-                      <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse shadow-glow-teal" />
+                      <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: THEME_COLORS.live, boxShadow: `0 0 0 2px ${alphaThemeColor('live', '0.14')}` }} />
                     </div>
                   )}
                 </div>
@@ -389,7 +410,7 @@ export function EventsTab() {
       </ChartCard>
 
       <div className="grid grid-cols-2 gap-4">
-        <StatBox label="Active" value={activeCount} color="#00d4aa" />
+        <StatBox label="Active" value={activeCount} color={CHART_THEME.accentTeal} />
         <StatBox label="Total" value={totalCount} />
       </div>
 
@@ -408,7 +429,13 @@ export function EventsTab() {
                   </span>
                 </div>
                 <div className="h-1.5 bg-border/40 rounded-full overflow-hidden">
-                  <div className="h-full bg-accent-teal/60 transition-all duration-300" style={{ width: `${pct}%` }} />
+                  <div
+                    className="h-full transition-all duration-300"
+                    style={{
+                      width: `${pct}%`,
+                      backgroundColor: TAG_BAR_COLOR[tag] || alphaThemeColor('uiAccent', '0.55'),
+                    }}
+                  />
                 </div>
               </div>
             );

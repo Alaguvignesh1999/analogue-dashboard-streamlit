@@ -2,9 +2,11 @@
 
 import { useMemo, useCallback } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Button, SliderControl, StatBox, EmptyState, Badge } from '@/components/ui/ChartCard';
-import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
+import { BottomDescription, ChartCard, Button, SliderControl, StatBox, EmptyState, Badge } from '@/components/ui/ChartCard';
+import { DiagnosticsStrip } from '@/components/ui/DiagnosticsStrip';
+import { getEffectiveScoringDay } from '@/engine/live';
 import { filterScoresByActiveEvents, runAnalogueMatch, selectEvents } from '@/engine/similarity';
+import { CHART_THEME } from '@/config/theme';
 
 export function AnaloguesTab() {
   const {
@@ -25,7 +27,6 @@ export function AnaloguesTab() {
   } = useDashboard();
 
   const scoringDayN = live.scoringReturns || live.returns ? getEffectiveScoringDay(live, similarityAssets) : null;
-  const scoringDate = live.scoringReturns || live.returns ? getEffectiveScoringDate(live, similarityAssets) : null;
   const scoringReturns = live.scoringReturns ?? live.returns;
   const hasLive = scoringReturns !== null && scoringDayN !== null;
   const activeEventDefs = useMemo(
@@ -75,7 +76,7 @@ export function AnaloguesTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title="Analogue Matching"
-        subtitle={`${activeScores.length} active events scored | scoring D+${scoringDayN ?? 0}${scoringDate ? ` (${scoringDate})` : ''} | weighted scoring`}
+        subtitle={`${activeScores.length} active events scored | weighted scoring`}
         controls={
           <div className="flex items-center gap-3">
             <SliderControl label="Cutoff" value={scoreCutoff} onChange={setCutoff} min={0} max={1} step={0.05} />
@@ -92,18 +93,20 @@ export function AnaloguesTab() {
           />
         ) : (
           <div className="space-y-4">
-            <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-              Quant compares the live return path against historical event paths at the effective scoring day. Tag and macro scores are then blended in using the normalized weights below. The stacked bar on each row shows how much each component contributes to the final composite score.
-            </div>
-
+            <DiagnosticsStrip
+              live={live}
+              labels={similarityAssets}
+              scoringMode="live-sim"
+              extra={<span>Analogue scores are coverage-adjusted so thin old-event overlap does not outrank dense evidence.</span>}
+            />
             <div className="px-4 pt-4 grid grid-cols-3 gap-3">
               <StatBox
                 label="Top Score"
                 value={`${(stats.topScore * 100).toFixed(0)}%`}
-                color={stats.topScore >= 0.7 ? '#69f0ae' : stats.topScore >= 0.5 ? '#ffd740' : '#ff5252'}
+                color={stats.topScore >= 0.7 ? CHART_THEME.up : stats.topScore >= 0.5 ? CHART_THEME.accentAmber : CHART_THEME.down}
               />
-              <StatBox label="Avg Score" value={`${(stats.avgScore * 100).toFixed(0)}%`} color="#00d4aa" />
-              <StatBox label="Selected" value={stats.selected} sub={`of ${activeScores.length} active`} color="#ffffff" />
+              <StatBox label="Avg Score" value={`${(stats.avgScore * 100).toFixed(0)}%`} color={CHART_THEME.accentTeal} />
+              <StatBox label="Selected" value={stats.selected} sub={`of ${activeScores.length} active`} color={CHART_THEME.textPrimary} />
             </div>
 
             <div className="px-4 grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -160,22 +163,30 @@ export function AnaloguesTab() {
                             {index + 1}. {score.event}
                           </div>
                           <div className="text-2xs text-text-dim mt-0.5">
-                            Composite {(score.composite * 100).toFixed(1)}% | Shared assets {score.sharedAssetCount}
+                            Composite {(score.composite * 100).toFixed(1)}% | Raw {(score.rawComposite * 100).toFixed(1)}% | Shared assets {score.sharedAssetCount}
                           </div>
                         </div>
-                        {selected && <Badge color="green">SELECTED</Badge>}
+                        <div className="flex items-center gap-1.5">
+                          <Badge color={score.confidenceLabel === 'high' ? 'green' : score.confidenceLabel === 'medium' ? 'amber' : 'red'}>
+                            {(score.coverageRatio * 100).toFixed(0)}%
+                          </Badge>
+                          {selected && <Badge color="green">SELECTED</Badge>}
+                        </div>
                       </div>
 
                       <div className="w-full h-2 bg-bg-primary rounded-sm overflow-hidden flex">
-                        <div style={{ width: `${quantContribution * 100}%`, background: '#00e5ff' }} />
-                        <div style={{ width: `${tagContribution * 100}%`, background: '#ffab40' }} />
-                        <div style={{ width: `${macroContribution * 100}%`, background: '#b388ff' }} />
+                        <div style={{ width: `${quantContribution * 100}%`, background: CHART_THEME.accentTeal }} />
+                        <div style={{ width: `${tagContribution * 100}%`, background: CHART_THEME.accentAmber }} />
+                        <div style={{ width: `${macroContribution * 100}%`, background: CHART_THEME.accentPurple }} />
                       </div>
 
                       <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] text-text-dim">
                         <div>Quant: {(score.quant * 100).toFixed(0)}%</div>
                         <div>Tag: {(score.tag * 100).toFixed(0)}%</div>
                         <div>Macro: {(score.macro * 100).toFixed(0)}%</div>
+                        <div>Coverage: {(score.coverageRatio * 100).toFixed(0)}%</div>
+                        <div>Penalty: {score.sparsePenalty.toFixed(2)}x</div>
+                        <div>Confidence: {score.confidenceLabel}</div>
                       </div>
                     </div>
                   );
@@ -189,6 +200,9 @@ export function AnaloguesTab() {
               </div>
               <div>{selectedEvents.length} of {activeScores.length} active events above cutoff threshold</div>
             </div>
+            <BottomDescription>
+              Quant compares the current live return path against historical event paths. Tag and macro scores are then blended in using the normalized weights below. The stacked bar on each row shows how much each component contributes to the final composite score.
+            </BottomDescription>
           </div>
         )}
       </ChartCard>
