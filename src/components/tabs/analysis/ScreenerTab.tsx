@@ -29,6 +29,25 @@ interface ScreenerRow {
   overlapCount: number;
 }
 
+function hitRateClass(hitRate: number): string {
+  if (hitRate >= 0.75) return 'text-accent-teal';
+  if (hitRate >= 0.6) return 'text-up';
+  if (hitRate >= 0.5) return 'text-accent-amber';
+  return 'text-down';
+}
+
+function crowdingBadgeColor(overlapCount: number): 'dim' | 'amber' | 'red' {
+  if (overlapCount === 0) return 'dim';
+  if (overlapCount === 1) return 'amber';
+  return 'red';
+}
+
+function crowdingAccent(overlapCount: number): string {
+  if (overlapCount === 0) return 'rgba(113,113,122,0.45)';
+  if (overlapCount === 1) return 'rgba(245,158,11,0.9)';
+  return 'rgba(239,68,68,0.9)';
+}
+
 export function ScreenerTab() {
   const { eventReturns, assetMeta, allLabels, allClasses, scores, scoreCutoff, horizon, live, activeEvents } = useDashboard();
   const [group, setGroup] = useState(ALL_ASSETS_OPTION);
@@ -207,39 +226,51 @@ export function ScreenerTab() {
                   {live.returns ? 'No signals at the current thresholds.' : 'Run L1 Config first to establish the live analogue set.'}
                 </td>
               </tr>
-            ) : rows.map((row) => (
-              <tr key={row.lbl} className="hover:bg-bg-hover/40 transition-colors" style={{ backgroundColor: row.convictionColor }}>
-                <td className="px-2 py-1 text-left text-text-primary border-b border-border/30 whitespace-nowrap font-medium">
+            ) : rows.map((row, index) => (
+              <tr
+                key={row.lbl}
+                className="hover:bg-bg-hover/40 transition-colors"
+                style={{
+                  backgroundColor: row.convictionColor,
+                  boxShadow: `inset 3px 0 0 ${crowdingAccent(row.redundantWith.length)}`,
+                }}
+              >
+                <td
+                  className="px-2 py-1 text-left text-text-primary border-b border-border/40 whitespace-nowrap font-medium"
+                  style={{ backgroundColor: index % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}
+                >
                   {displayLabel(assetMeta[row.lbl], row.lbl)}
                 </td>
-                <td className="px-2 py-1 text-center border-b border-border/30 whitespace-nowrap">{row.conviction}</td>
-                <td className={`px-2 py-1 text-center border-b border-border/30 ${row.med > 0 ? 'text-up' : 'text-down'}`}>{row.direction}</td>
-                <td className={`px-2 py-1 text-center border-b border-border/30 font-medium ${row.med >= 0 ? 'text-up' : 'text-down'}`}>
+                <td className="px-2 py-1 text-center border-b border-border/40 whitespace-nowrap">{row.conviction}</td>
+                <td className={`px-2 py-1 text-center border-b border-border/40 ${row.med > 0 ? 'text-up' : 'text-down'}`}>{row.direction}</td>
+                <td className={`px-2 py-1 text-center border-b border-border/40 font-medium ${row.med >= 0 ? 'text-up' : 'text-down'}`}>
                   {fmtReturn(row.med, assetMeta[row.lbl]?.is_rates_bp || false)}
                 </td>
-                <td className="px-2 py-1 text-center border-b border-border/30">{(row.hitRate * 100).toFixed(0)}%</td>
-                <td className="px-2 py-1 text-center border-b border-border/30">{(row.cov * 100).toFixed(0)}% (N={row.nCov})</td>
-                <td className="px-2 py-1 text-center border-b border-border/30 text-down">
+                <td className={`px-2 py-1 text-center border-b border-border/40 ${hitRateClass(row.hitRate)}`}>{(row.hitRate * 100).toFixed(0)}%</td>
+                <td className="px-2 py-1 text-center border-b border-border/40">{(row.cov * 100).toFixed(0)}% (N={row.nCov})</td>
+                <td className="px-2 py-1 text-center border-b border-border/40 text-down">
                   {Number.isNaN(row.maeMed) ? '--' : fmtReturn(row.maeMed, assetMeta[row.lbl]?.is_rates_bp || false)}
                 </td>
-                <td className="px-2 py-1 text-center border-b border-border/30">
+                <td className="px-2 py-1 text-center border-b border-border/40">
                   {Number.isNaN(row.rrRatio) ? '--' : `${row.rrRatio.toFixed(2)}x`}
                 </td>
-                <td className="px-2 py-1 text-center border-b border-border/30">{row.bimodal ? 'YES' : 'NO'}</td>
-                <td className="px-2 py-1 text-left border-b border-border/30 text-text-dim max-w-[260px]">
+                <td className="px-2 py-1 text-center border-b border-border/40">{row.bimodal ? 'YES' : 'NO'}</td>
+                <td className="px-2 py-1 text-left border-b border-border/40 text-text-dim max-w-[280px]">
                   {row.redundantWith.length === 0 ? (
                     <Badge color="dim">Independent</Badge>
                   ) : (
                     <div className="space-y-1">
-                      {row.redundantWith.map((value) => (
-                        <div key={value}>
-                          <Badge color="amber">{value}</Badge>
-                        </div>
-                      ))}
+                      <Badge color={crowdingBadgeColor(row.redundantWith.length)}>
+                        {row.redundantWith.length} overlap{row.redundantWith.length > 1 ? 's' : ''}
+                      </Badge>
+                      <div className="text-[10px] leading-snug text-text-dim/85">
+                        {row.redundantWith.slice(0, 2).join(', ')}
+                        {row.redundantWith.length > 2 ? ` +${row.redundantWith.length - 2} more` : ''}
+                      </div>
                     </div>
                   )}
                 </td>
-                <td className="px-2 py-1 text-left border-b border-border/30 text-text-dim whitespace-normal">{row.rationale}</td>
+                <td className="px-2 py-1 text-left border-b border-border/40 text-text-dim whitespace-normal">{row.rationale}</td>
               </tr>
             ))}
           </tbody>

@@ -11,6 +11,25 @@ import { computeTradeRows } from '@/engine/trades';
 import { fmtReturn } from '@/lib/format';
 import { ALL_ASSETS_OPTION, getGroupLabels, groupOptionsFromData } from '@/config/assets';
 
+function hitRateClass(hitRate: number): string {
+  if (hitRate >= 0.75) return 'text-accent-teal';
+  if (hitRate >= 0.6) return 'text-up';
+  if (hitRate >= 0.5) return 'text-accent-amber';
+  return 'text-down';
+}
+
+function moveClass(value: number, dir: 'LONG' | 'SHORT'): string {
+  const favorable = dir === 'LONG' ? value >= 0 : value <= 0;
+  return favorable ? 'text-up' : 'text-down';
+}
+
+function gapClass(value: number): string {
+  if (Number.isNaN(value)) return 'text-text-dim';
+  if (value >= 0) return 'text-up';
+  if (value >= -0.25) return 'text-accent-amber';
+  return 'text-down';
+}
+
 export function TradeIdeasTab() {
   const {
     eventReturns,
@@ -115,7 +134,7 @@ export function TradeIdeasTab() {
                     {fmtReturn(row.med, row.isRates)}
                   </td>
                   <td className="px-2 py-1 text-center border-b border-border/30">
-                    <span className={row.hitRate >= 0.6 ? 'text-up' : row.hitRate >= 0.5 ? 'text-accent-amber' : 'text-down'}>
+                    <span className={hitRateClass(row.hitRate)}>
                       {(row.hitRate * 100).toFixed(0)}%
                     </span>
                   </td>
@@ -125,13 +144,13 @@ export function TradeIdeasTab() {
                   <td className={`px-2 py-1 text-center border-b border-border/30 ${row.sortino > 0 ? 'text-up' : 'text-down'}`}>
                     {row.sortino.toFixed(2)}
                   </td>
-                  <td className="px-2 py-1 text-center text-down border-b border-border/30">
+                  <td className={`px-2 py-1 text-center border-b border-border/30 ${moveClass(row.worst, row.dir)}`}>
                     {fmtReturn(row.worst, row.isRates)}
                   </td>
                   <td className="px-2 py-1 text-center border-b border-border/30">
                     {Number.isNaN(row.liveGap)
                       ? '--'
-                      : <span className={row.liveGap >= 0 ? 'text-up' : 'text-down'}>{fmtReturn(row.liveGap, row.isRates)}</span>}
+                      : <span className={gapClass(row.liveGap)}>{fmtReturn(row.liveGap, row.isRates)}</span>}
                   </td>
                   <td className="px-2 py-1 text-center border-b border-border/30">
                     {Number.isNaN(row.livePctile) ? '--' : `${row.livePctile.toFixed(0)}th`}

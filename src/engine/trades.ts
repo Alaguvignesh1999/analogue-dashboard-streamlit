@@ -101,8 +101,8 @@ export function computeTradeRows(
     const downsideValues = adjustedValues.filter((value) => value < 0);
     const downsideStd = downsideValues.length > 1 ? nanStd(downsideValues) : stdAdjusted + 1e-9;
     const sortino = meanAdjusted / (downsideStd + 1e-9);
-    const worst = nanMin(adjustedValues);
-    const best = nanMax(adjustedValues);
+    const worst = direction > 0 ? nanMin(fwdVals) : nanMax(fwdVals);
+    const best = direction > 0 ? nanMax(fwdVals) : nanMin(fwdVals);
 
     let skew = 0;
     if (fwdVals.length >= 3) {
@@ -123,7 +123,7 @@ export function computeTradeRows(
         if (!Number.isNaN(value)) historicalAtLivePoint.push(value);
       }
       if (historicalAtLivePoint.length >= 2) {
-        liveGap = livePoint.value - nanMedian(historicalAtLivePoint);
+        liveGap = direction * (livePoint.value - nanMedian(historicalAtLivePoint));
         livePctile = (historicalAtLivePoint.filter((value) => livePoint.value > value).length / historicalAtLivePoint.length) * 100;
       }
     }

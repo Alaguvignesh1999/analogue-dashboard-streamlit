@@ -59,6 +59,25 @@ function corrLabel(value: number): string {
   return value.toFixed(2);
 }
 
+function hitRateColor(hitRate: number): string {
+  if (hitRate >= 0.75) return MED;
+  if (hitRate >= 0.6) return POS;
+  if (hitRate >= 0.5) return '#fbbf24';
+  return NEG;
+}
+
+function moveColor(value: number, dir: 'LONG' | 'SHORT'): string {
+  const favorable = dir === 'LONG' ? value >= 0 : value <= 0;
+  return favorable ? POS : NEG;
+}
+
+function gapColor(value: number): string {
+  if (Number.isNaN(value)) return '#8a8a9a';
+  if (value >= 0) return POS;
+  if (value >= -0.25) return '#fbbf24';
+  return NEG;
+}
+
 export function DetailTab() {
   const {
     eventReturns,
@@ -205,11 +224,11 @@ export function DetailTab() {
             <div className="px-4 pt-4 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
               <StatBox label="Median" value={fmtReturn(currentTrade.med, isRates)} color={currentTrade.med >= 0 ? POS : NEG} />
               <StatBox label="Mean" value={fmtReturn(currentTrade.mean, isRates)} color={MED} />
-              <StatBox label="Hit Rate" value={`${(currentTrade.hitRate * 100).toFixed(0)}%`} color={currentTrade.hitRate >= 0.6 ? POS : currentTrade.hitRate >= 0.5 ? '#fbbf24' : NEG} />
+              <StatBox label="Hit Rate" value={`${(currentTrade.hitRate * 100).toFixed(0)}%`} color={hitRateColor(currentTrade.hitRate)} />
               <StatBox label="Sharpe" value={currentTrade.sharpe.toFixed(2)} color={currentTrade.sharpe > 0 ? POS : NEG} />
               <StatBox label="Sortino" value={currentTrade.sortino.toFixed(2)} color={currentTrade.sortino > 0 ? POS : NEG} />
-              <StatBox label="Worst" value={fmtReturn(currentTrade.worst, isRates)} color={NEG} />
-              <StatBox label="Gap" value={Number.isNaN(currentTrade.liveGap) ? '--' : fmtReturn(currentTrade.liveGap, isRates)} color={Number.isNaN(currentTrade.liveGap) ? '#8a8a9a' : currentTrade.liveGap >= 0 ? POS : NEG} />
+              <StatBox label="Worst" value={fmtReturn(currentTrade.worst, isRates)} color={moveColor(currentTrade.worst, currentTrade.dir)} />
+              <StatBox label="Gap" value={Number.isNaN(currentTrade.liveGap) ? '--' : fmtReturn(currentTrade.liveGap, isRates)} color={gapColor(currentTrade.liveGap)} />
               <StatBox label="Pctile" value={Number.isNaN(currentTrade.livePctile) ? '--' : `${currentTrade.livePctile.toFixed(0)}th`} color="#ffffff" />
             </div>
 
