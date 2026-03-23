@@ -2,13 +2,13 @@
 
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, SliderControl, StatBox, Badge } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, SliderControl, StatBox, Badge } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel } from '@/engine/returns';
 import { POIS } from '@/config/engine';
 import { ALL_ASSETS_OPTION, getGroupLabels, groupOptionsFromData } from '@/config/assets';
 import { nanMean, nanMedian, nanStd } from '@/lib/math';
 import { fmtReturn } from '@/lib/format';
-import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
+import { getEffectiveScoringDay, getLiveDisplayDay, getLiveDisplayDate } from '@/engine/live';
 import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import {
   BarChart,
@@ -51,7 +51,8 @@ export function RotationTab() {
   );
 
   const effectiveDay = getEffectiveScoringDay(live, similarityAssets);
-  const effectiveDate = getEffectiveScoringDate(live, similarityAssets);
+  const displayDay = getLiveDisplayDay(live);
+  const displayDate = getLiveDisplayDate(live);
   const positivePois = useMemo(() => POIS.filter((poi) => poi.offset >= 0), []);
   const activePoi = positivePois[poiIndex] || positivePois.find((poi) => poi.offset === 21) || positivePois[0];
   const startOffset = mode === 'from-live' ? effectiveDay : 0;
@@ -138,10 +139,6 @@ export function RotationTab() {
       subtitle={`${rotationGroup} | ${horizonLabel} | ${selectedEvents.length} analogue events`}
     >
       <div className="p-4 space-y-4 animate-fade-in">
-        <div className="text-2xs text-text-dim border border-border/40 bg-bg-cell/30 px-3 py-2">
-          Rotation ranks which assets in the selected basket historically led or lagged after similar events. Use preset horizons for notebook-style post-event views, or switch to live mode to ask what tends to rotate from the current effective scoring day over the next X trading days.
-        </div>
-
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Select label="Basket" value={rotationGroup} onChange={setRotationGroup} options={groupOptions} />
           <Select
@@ -162,8 +159,8 @@ export function RotationTab() {
 
         {mode === 'from-live' && (
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge color="teal">Effective D+{effectiveDay}</Badge>
-            <Badge color="dim">{effectiveDate || '--'}</Badge>
+            <Badge color="teal">Live D+{displayDay}</Badge>
+            <Badge color="dim">{displayDate || '--'}</Badge>
           </div>
         )}
 
@@ -244,10 +241,11 @@ export function RotationTab() {
               </table>
             </div>
 
-            <div className="text-2xs text-text-dim border-t border-border/40 pt-3 space-y-1">
-              <p>Preset mode measures rotation from D0 to the selected POI. Live mode measures from the current effective live scoring day to D+{endOffset}.</p>
+            <BottomDescription className="space-y-1">
+              <p>Rotation ranks which assets in the selected basket historically led or lagged after similar events. Use preset horizons for notebook-style post-event views, or switch to live mode to ask what tends to rotate from the current live analysis point over the next X trading days.</p>
+              <p>Preset mode measures rotation from D0 to the selected POI. Live mode measures from the current live analysis point to D+{endOffset}.</p>
               <p className="text-text-dim/70">Use leaders vs laggards for rotation clues, not as a substitute for the full analogue ranking.</p>
-            </div>
+            </BottomDescription>
           </>
         )}
       </div>

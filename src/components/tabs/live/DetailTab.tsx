@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { Badge, ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
+import { Badge, BottomDescription, ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
 import { DiagnosticsStrip } from '@/components/ui/DiagnosticsStrip';
 import { displayLabel, unitLabel } from '@/engine/returns';
-import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveDisplayDay } from '@/engine/live';
+import { getEffectiveScoringDay, getLiveDisplayDay, getLiveDisplayDate } from '@/engine/live';
 import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import {
   buildDotPlot,
@@ -114,8 +114,8 @@ export function DetailTab() {
   }, [selectedAsset, selectedHorizon, setDetailContext]);
 
   const effectiveDay = getEffectiveScoringDay(live, [selectedAsset]);
-  const effectiveDate = getEffectiveScoringDate(live, [selectedAsset]);
   const displayDay = getLiveDisplayDay(live);
+  const displayDate = getLiveDisplayDate(live);
   const meta = assetMeta[selectedAsset];
   const isRates = meta?.is_rates_bp || false;
   const unit = unitLabel(meta);
@@ -176,7 +176,7 @@ export function DetailTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title={`Detail - ${displayLabel(meta, selectedAsset)}`}
-        subtitle={`Display D+${displayDay} | effective D+${effectiveDay}${effectiveDate ? ` (${effectiveDate})` : ''} | forward +${selectedHorizon}d`}
+        subtitle={`Live D+${displayDay}${displayDate ? ` (${displayDate})` : ''} | forward +${selectedHorizon}d`}
         controls={
           <div className="flex items-center gap-2 flex-wrap">
             <Select label="" value={group} onChange={setGroup} options={groupOptions} />
@@ -202,10 +202,6 @@ export function DetailTab() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-              Detail is the drill-down for a single trade idea. Read it top-down: headline edge, horizon-by-horizon stability, analogue-by-analogue spread, then live deviation and correlation crowding.
-            </div>
-
             <div className="px-4 pt-4 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
               <StatBox label="Median" value={fmtReturn(currentTrade.med, isRates)} color={currentTrade.med >= 0 ? POS : NEG} />
               <StatBox label="Mean" value={fmtReturn(currentTrade.mean, isRates)} color={MED} />
@@ -393,6 +389,9 @@ export function DetailTab() {
                 )}
               </ChartCard>
             </div>
+            <BottomDescription>
+              Detail is the drill-down for a single trade idea. Read it top-down: headline edge, horizon-by-horizon stability, analogue-by-analogue spread, then live deviation and correlation crowding.
+            </BottomDescription>
           </div>
         )}
       </ChartCard>

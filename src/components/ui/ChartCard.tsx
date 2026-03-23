@@ -74,6 +74,17 @@ export function ChartCard({ title, subtitle, controls, children, className = '',
   );
 }
 
+export function BottomDescription({ children, className = '' }: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`px-4 py-3 text-2xs text-text-dim border-t border-border/40 bg-bg-cell/20 ${className}`}>
+      {children}
+    </div>
+  );
+}
+
 /* ─────────────────────── Stat Box ─────────────────────── */
 export function StatBox({ label, value, sub, color, className = '' }: {
   label: string;

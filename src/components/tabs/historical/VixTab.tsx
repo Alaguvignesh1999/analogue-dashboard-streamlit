@@ -1,7 +1,7 @@
 'use client';
 import { useMemo } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard } from '@/components/ui/ChartCard';
 import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
 import { nanMedian, nanPercentile } from '@/lib/math';
 import { PRE_WINDOW_TD, POST_WINDOW_TD, POIS } from '@/config/engine';
@@ -66,11 +66,8 @@ export function VixTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title="VIX Path Analysis"
-        subtitle={`${activeEventNames.length} events · median ± IQR band${liveVixDate ? ` · live scored to D+${liveVixDay} (${liveVixDate})` : ''}`}
+        subtitle={`${activeEventNames.length} events · median ± IQR band${liveVixDate ? ` · live D+${liveVixDay} (${liveVixDate})` : ''}`}
       >
-        <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-          The teal band shows the historical VIX distribution across the active event set, while the orange line is the current live path. Compare both shape and level: a live line above the upper band means volatility is running hotter than most analogues at the same point in the event window.
-        </div>
         {!hasData ? (
           <div className="h-[420px] flex items-center justify-center text-text-dim text-xs">
             No VIX data is available for the currently selected events.
@@ -121,6 +118,9 @@ export function VixTab() {
             </ResponsiveContainer>
           </div>
         )}
+        <BottomDescription>
+          The teal band shows the historical VIX distribution across the active event set, while the orange line is the current live path. Compare both shape and level: a live line above the upper band means volatility is running hotter than most analogues at the same point in the event window.
+        </BottomDescription>
       </ChartCard>
 
       {hasData && (

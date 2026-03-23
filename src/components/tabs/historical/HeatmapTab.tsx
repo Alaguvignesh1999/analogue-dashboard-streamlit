@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select } from '@/components/ui/ChartCard';
 import { anchorSeriesValue, displayLabel, unitLabel, eventDateMap, isAssetAvailableForEvent } from '@/engine/returns';
 import { POIS } from '@/config/engine';
 import { CHART_THEME } from '@/config/theme';
@@ -103,10 +103,6 @@ export function HeatmapTab() {
         </div>
       }
     >
-      <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-        Each cell shows the rebased return at that POI for the selected asset and event. The live row, when present, uses the currently loaded live event on the same Day 0 basis. Blank cells mean the asset was unavailable or had insufficient coverage for that event and horizon, not a zero return.
-      </div>
-
       <div className="overflow-x-auto p-4">
         <table className="w-full border-collapse text-xs font-mono">
           <thead>
@@ -149,6 +145,9 @@ export function HeatmapTab() {
           </tbody>
         </table>
       </div>
+      <BottomDescription>
+        Each cell shows the rebased return at that POI for the selected asset and event. The live row, when present, uses the currently loaded live event on the same Day 0 basis. Blank cells mean the asset was unavailable or had insufficient coverage for that event and horizon, not a zero return.
+      </BottomDescription>
     </ChartCard>
   );
 }

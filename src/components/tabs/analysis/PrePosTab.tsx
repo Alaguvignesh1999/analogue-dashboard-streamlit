@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, SliderControl, StatBox, Badge } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, SliderControl, StatBox, Badge } from '@/components/ui/ChartCard';
 import { displayLabel, poiRet } from '@/engine/returns';
 import { ALL_ASSETS_OPTION, getGroupLabels, groupOptionsFromData } from '@/config/assets';
 import { nanMean, nanMedian, nanStd } from '@/lib/math';
@@ -140,10 +140,6 @@ export function PrePosTab() {
       subtitle={`Vol-adjusted move from D-${preWindow} to D0 across ${(activeEvents?.size || 0)} active events`}
     >
       <div className="p-4 space-y-4 animate-fade-in">
-        <div className="text-2xs text-text-dim border border-border/40 bg-bg-cell/30 px-3 py-2">
-          Pre-Positioning now ranks by the size of the move into Day 0 adjusted for pre-event volatility. That means a strong upside move and a strong downside move can both be important signals if they were large relative to the asset&apos;s own normal noise.
-        </div>
-
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <SliderControl
             label={`Window ${preWindow}D`}
@@ -223,6 +219,9 @@ export function PrePosTab() {
             </div>
           </>
         )}
+        <BottomDescription>
+          Pre-Positioning now ranks by the size of the move into Day 0 adjusted for pre-event volatility. That means a strong upside move and a strong downside move can both be important signals if they were large relative to the asset&apos;s own normal noise.
+        </BottomDescription>
       </div>
     </ChartCard>
   );

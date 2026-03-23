@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, StatBox, Button, Badge } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, StatBox, Button, Badge } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel } from '@/engine/returns';
-import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
+import { getEffectiveScoringDay, getLiveDisplayDay, getLiveDisplayDate } from '@/engine/live';
 import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import { PORTFOLIO_SCENARIOS } from '@/config/engine';
 import { nanMean, nanMedian, nanMin, nanMax, nanPercentile } from '@/lib/math';
@@ -48,7 +48,8 @@ export function StressTab() {
   const positions = portfolioBook[selectedPortfolio] || [];
   const positionLabels = useMemo(() => positions.map((position) => position.asset), [positions]);
   const dayN = getEffectiveScoringDay(live, positionLabels);
-  const effectiveDate = getEffectiveScoringDate(live, positionLabels);
+  const displayDay = getLiveDisplayDay(live);
+  const displayDate = getLiveDisplayDate(live);
 
   const assetOptions = useMemo(
     () => allLabels.map((label) => ({ value: label, label: displayLabel(assetMeta[label], label) })),
@@ -162,7 +163,7 @@ export function StressTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title="Portfolio Stress Test"
-        subtitle={`${selectedPortfolio} | ${selectedEvents.length} analogues | effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} -> D+${dayN + horizon}`}
+        subtitle={`${selectedPortfolio} | ${selectedEvents.length} analogues | live D+${displayDay}${displayDate ? ` (${displayDate})` : ''} -> +${horizon}d`}
         controls={
           <div className="flex items-center gap-2">
             <Select label="Portfolio" value={selectedPortfolio} onChange={setSelectedPortfolio} options={portfolioOptions} />
@@ -184,10 +185,6 @@ export function StressTab() {
           </div>
         }
       >
-        <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-          Stress runs the current portfolio through each selected analogue event and shows the distribution of outcomes. Use nominal view for dollar PnL and percentage view for normalized portfolio-return terms.
-        </div>
-
         <div className="p-4 border-b border-border/30 space-y-3">
           <div className="flex items-center justify-between">
             <div className="text-2xs text-text-dim">Portfolio composition</div>
@@ -308,6 +305,9 @@ export function StressTab() {
             </div>
           </div>
         )}
+        <BottomDescription>
+          Stress runs the current portfolio through each selected analogue event and shows the distribution of outcomes. Use nominal view for dollar PnL and percentage view for normalized portfolio-return terms.
+        </BottomDescription>
       </ChartCard>
     </div>
   );

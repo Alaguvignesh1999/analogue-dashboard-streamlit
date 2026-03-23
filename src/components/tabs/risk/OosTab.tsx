@@ -1,7 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, SliderControl, StatBox, Badge } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, SliderControl, StatBox, Badge } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel } from '@/engine/returns';
 import { SIMILARITY_ASSET_POOL, POIS } from '@/config/engine';
 import { cosine, nanMean, nanMedian } from '@/lib/math';
@@ -128,10 +128,6 @@ export function OosTab() {
           </div>
         }
       >
-        <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-          OOS validation now compares only overlapping valid asset returns when scoring held-out events. Missing observations are skipped, not zero-filled, so low-overlap events are penalized instead of silently treated as neutral.
-        </div>
-
         <div className="grid grid-cols-3 gap-2 p-4 bg-bg-cell/30">
           <StatBox label="Direction Accuracy" value={`${(summary.dirAcc * 100).toFixed(0)}%`} color={summary.dirAcc >= 0.6 ? '#22c55e' : '#ef4444'} />
           <StatBox label="MAE" value={summary.mae.toFixed(2)} color="#a1a1b0" />
@@ -182,6 +178,9 @@ export function OosTab() {
         <div className="px-4 py-3 text-2xs text-text-dim bg-bg-cell/30">
           Hold out {holdout} recent events, score similarity from the {SIMILARITY_ASSET_POOL.length}-asset pool using overlap-only vectors, then predict the held-out {displayLabel(assetMeta[referenceAsset], referenceAsset)} move from the median of the top 30% analogue set.
         </div>
+        <BottomDescription>
+          OOS validation now compares only overlapping valid asset returns when scoring held-out events. Missing observations are skipped, not zero-filled, so low-overlap events are penalized instead of silently treated as neutral.
+        </BottomDescription>
       </ChartCard>
     </div>
   );

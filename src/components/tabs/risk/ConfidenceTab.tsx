@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, StatBox, Badge } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, StatBox, Badge } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel, unitLabel } from '@/engine/returns';
-import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
+import { getEffectiveScoringDay, getLiveDisplayDay, getLiveDisplayDate } from '@/engine/live';
 import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import { KELLY_FRACTION, RISK_BUDGET_USD } from '@/config/engine';
 import { CUSTOM_GROUPS } from '@/config/assets';
@@ -38,7 +38,8 @@ export function ConfidenceTab() {
   const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
   const labels = useMemo(() => CUSTOM_GROUPS[group] || [], [group]);
   const dayN = getEffectiveScoringDay(live, labels);
-  const effectiveDate = getEffectiveScoringDate(live, labels);
+  const displayDay = getLiveDisplayDay(live);
+  const displayDate = getLiveDisplayDate(live);
 
   const rows = useMemo(() => {
     const results: Array<{
@@ -128,13 +129,9 @@ export function ConfidenceTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title="Bootstrap Confidence Bands"
-        subtitle={`N=500 resamples · ${selectedEvents.length} analogues · effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} -> D+${dayN + horizon}`}
+        subtitle={`N=500 resamples · ${selectedEvents.length} analogues · live D+${displayDay}${displayDate ? ` (${displayDate})` : ''} -> +${horizon}d`}
         controls={<Select label="" value={group} onChange={setGroup} options={groupOptions} />}
       >
-        <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-          Confidence combines distribution width, hit rate, and sample size. Treat the bootstrap interval as the likely range for the median forward move, not a guarantee.
-        </div>
-
         <div className="border-b border-border/30">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-2xs font-mono">
@@ -212,9 +209,14 @@ export function ConfidenceTab() {
             </tbody>
           </table>
         </div>
-        <div className="px-4 py-3 text-2xs text-text-dim bg-bg-cell/30">
-          Half-Kelly sizing formula: `f = (p*b - q) / b`, scaled by {(KELLY_FRACTION * 100).toFixed(0)}% and capped to the working budget of <span className="text-accent-teal">{fmtDollar(RISK_BUDGET_USD)}</span>.
-        </div>
+        <BottomDescription className="space-y-2">
+          <div>
+            Confidence combines distribution width, hit rate, and sample size. Treat the bootstrap interval as the likely range for the median forward move, not a guarantee.
+          </div>
+          <div>
+            Half-Kelly sizing formula: `f = (p*b - q) / b`, scaled by {(KELLY_FRACTION * 100).toFixed(0)}% and capped to the working budget of <span className="text-accent-teal">{fmtDollar(RISK_BUDGET_USD)}</span>.
+          </div>
+        </BottomDescription>
       </ChartCard>
     </div>
   );

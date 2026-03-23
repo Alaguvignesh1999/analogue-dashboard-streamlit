@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, Badge } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, Badge } from '@/components/ui/ChartCard';
 import { DiagnosticsStrip } from '@/components/ui/DiagnosticsStrip';
 import { displayLabel } from '@/engine/returns';
-import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveDiagnosticsSummary } from '@/engine/live';
+import { getEffectiveScoringDay, getLiveDiagnosticsSummary } from '@/engine/live';
 import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import { computeTradeRows } from '@/engine/trades';
 import { fmtReturn } from '@/lib/format';
@@ -38,7 +38,6 @@ export function TradeIdeasTab() {
     [group, allLabels, assetMeta],
   );
   const dayN = getEffectiveScoringDay(live, labels);
-  const effectiveDate = getEffectiveScoringDate(live, labels);
   const rows = useMemo(
     () => computeTradeRows(labels, eventReturns, assetMeta, selectedEvents, dayN, horizon, live),
     [labels, eventReturns, assetMeta, selectedEvents, dayN, horizon, live],
@@ -49,7 +48,7 @@ export function TradeIdeasTab() {
   return (
     <ChartCard
       title="Trade Ideas"
-      subtitle={`${rows.length} ideas | effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} -> D+${dayN + horizon} | ${selectedEvents.length} analogues`}
+      subtitle={`${rows.length} ideas | forward +${horizon}d from current live state | ${selectedEvents.length} analogues`}
       controls={
         <Select label="Group" value={group} onChange={setGroup} options={groupOptions} />
       }
@@ -60,10 +59,6 @@ export function TradeIdeasTab() {
         scoringMode="live-sim"
         extra={<span>Click any row to open Detail with the same asset and horizon.</span>}
       />
-      <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-        Trade Ideas ranks forward setups from the same effective live scoring day used by the analogue engine. Gap and percentile compare today&apos;s live move to the analogue distribution at the same point, and clicking a row opens the deeper drill-down in Detail.
-      </div>
-
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-2xs font-mono">
           <thead>
@@ -153,6 +148,9 @@ export function TradeIdeasTab() {
           </tbody>
         </table>
       </div>
+      <BottomDescription>
+        Trade Ideas ranks forward setups from the current live state. Gap and percentile compare today&apos;s live move to the analogue distribution at the same point, and clicking a row opens the deeper drill-down in Detail.
+      </BottomDescription>
     </ChartCard>
   );
 }

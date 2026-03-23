@@ -29,9 +29,7 @@ export function DiagnosticsStrip({
   return (
     <div className="px-4 py-2.5 text-2xs border-b border-border/40 bg-bg-cell/20">
       <div className="flex items-center gap-2 flex-wrap">
-        <Badge color="blue">Display D+{diagnostics.displayDayN}</Badge>
-        <Badge color="teal">Score D+{diagnostics.scoringDayN}</Badge>
-        <Badge color="purple">Effective D+{diagnostics.effectiveDayN}</Badge>
+        <Badge color="blue">Live D+{diagnostics.displayDayN}</Badge>
         {scoringMode && <Badge color="dim">Mode: {scoringMode}</Badge>}
         {sharedAssetCount !== null && sharedAssetCount !== undefined && (
           <Badge color="dim">Shared: {sharedAssetCount}</Badge>
@@ -42,9 +40,7 @@ export function DiagnosticsStrip({
         </Badge>
       </div>
       <div className="mt-2 text-text-dim flex items-center gap-4 flex-wrap">
-        <span>Display date: {diagnostics.displayDate || '--'}</span>
-        <span>Score date: {diagnostics.scoringDate || '--'}</span>
-        <span>Effective date: {diagnostics.effectiveDate || '--'}</span>
+        <span>Live date: {diagnostics.displayDate || diagnostics.effectiveDate || '--'}</span>
         <span>Assets: {diagnostics.availableAssetCount}/{diagnostics.requestedAssetCount}</span>
         {extra}
       </div>

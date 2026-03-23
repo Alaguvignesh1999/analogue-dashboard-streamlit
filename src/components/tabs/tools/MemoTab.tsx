@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Button } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Button } from '@/components/ui/ChartCard';
 import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import { poiRet, displayLabel } from '@/engine/returns';
 import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
@@ -32,7 +32,7 @@ export function MemoTab() {
     lines.push('## Event Context');
     lines.push(`- Live event: ${live.name || '--'}`);
     lines.push(`- Requested Day 0: ${live.day0 || '--'}`);
-    lines.push(`- Effective scoring day: D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''}`);
+    lines.push(`- Live date basis: D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''}`);
     lines.push(`- Horizon: D+${dayN} to D+${dayN + horizon}`);
     lines.push(`- Analogues selected: ${selectedEvents.length} of ${activeScores.length} active events (cutoff ${scoreCutoff.toFixed(2)})`);
     lines.push('');
@@ -110,12 +110,8 @@ export function MemoTab() {
 
   return (
     <div className="p-4 space-y-4 animate-fade-in">
-      <ChartCard title="Trade Memo" subtitle="Auto-generated summary from the current analogue state and effective live scoring basis">
+      <ChartCard title="Trade Memo" subtitle="Auto-generated summary from the current analogue state and live date basis">
         <div className="p-4 space-y-4">
-          <div className="text-2xs text-text-dim border border-border/40 bg-bg-cell/20 px-3 py-2">
-            The memo reflects the current app state exactly as loaded: shared live snapshot, private scenario, or demo mode. It is meant as a shareable summary, not a separate calculation path, so its provenance should match the live status shown elsewhere in the dashboard.
-          </div>
-
           <div className="flex gap-2">
             <Button onClick={generateMemo} size="sm">Generate Memo</Button>
             {memoText && (
@@ -138,11 +134,16 @@ export function MemoTab() {
             </div>
           )}
 
-          {memoText && (
-            <div className="text-2xs text-text-dim border-t border-border/30 pt-3">
-              Generated from {selectedEvents.length} selected analogues using effective scoring day D+{dayN}{effectiveDate ? ` (${effectiveDate})` : ''}.
+          <BottomDescription className="space-y-1">
+            <div>
+              The memo reflects the current app state exactly as loaded: shared live snapshot, private scenario, or demo mode. It is meant as a shareable summary, not a separate calculation path, so its provenance should match the live status shown elsewhere in the dashboard.
             </div>
-          )}
+            {memoText && (
+              <div>
+                Generated from {selectedEvents.length} selected analogues using live date basis D+{dayN}{effectiveDate ? ` (${effectiveDate})` : ''}.
+              </div>
+            )}
+          </BottomDescription>
         </div>
       </ChartCard>
     </div>

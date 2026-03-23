@@ -1,7 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, SliderControl, Badge } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, SliderControl, Badge } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel } from '@/engine/returns';
 import { POIS, POST_WINDOW_TD } from '@/config/engine';
 import { CUSTOM_GROUPS } from '@/config/assets';
@@ -104,10 +104,6 @@ export function StepInTab() {
           </div>
         }
       >
-        <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-          Step-In asks: if you wait until D+{stepDay} to enter instead of trading immediately at Day 0, which assets still offer the best forward distribution by D+{fwdOffset}? Use it to compare delayed-entry opportunities, not to replace the main analogue ranking.
-        </div>
-
         <div className="overflow-x-auto border-t border-border/40">
           <table className="w-full border-collapse text-2xs font-mono">
             <thead>
@@ -184,6 +180,9 @@ export function StepInTab() {
             <div className="text-lg font-bold text-text-primary font-mono">{activeEventNames.length}</div>
           </div>
         </div>
+        <BottomDescription>
+          Step-In asks: if you wait until D+{stepDay} to enter instead of trading immediately at Day 0, which assets still offer the best forward distribution by D+{fwdOffset}? Use it to compare delayed-entry opportunities, not to replace the main analogue ranking.
+        </BottomDescription>
       </ChartCard>
     </div>
   );

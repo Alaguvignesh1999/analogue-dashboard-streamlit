@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, SliderControl, Badge } from '@/components/ui/ChartCard';
 import { displayLabel, poiRet, unitLabel } from '@/engine/returns';
-import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
+import { getEffectiveScoringDay } from '@/engine/live';
 import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import { corrcoef, nanMedian, nanStd } from '@/lib/math';
 import { fmtReturn } from '@/lib/format';
@@ -41,7 +41,6 @@ export function ScreenerTab() {
   const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
   const labels = useMemo(() => getGroupLabels(group, allLabels, assetMeta), [group, allLabels, assetMeta]);
   const dayN = getEffectiveScoringDay(live, labels);
-  const effectiveDate = getEffectiveScoringDate(live, labels);
   const fo = dayN + horizon;
   const minHit = minHitPct / 100;
   const minCov = minCovPct / 100;
@@ -176,7 +175,7 @@ export function ScreenerTab() {
   return (
     <ChartCard
       title="Signal Screener"
-      subtitle={`ACT ${nAct} | MONITOR ${nMonitor} | Crowded ${nCrowded} | effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} -> +${horizon}d`}
+      subtitle={`ACT ${nAct} | MONITOR ${nMonitor} | Crowded ${nCrowded} | forward +${horizon}d`}
       controls={<Select label="Group" value={group} onChange={setGroup} options={groupOptions} />}
     >
       <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/50 bg-bg-cell/20">

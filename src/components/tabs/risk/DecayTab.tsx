@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, SliderControl, Badge } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, SliderControl, Badge } from '@/components/ui/ChartCard';
 import { DiagnosticsStrip } from '@/components/ui/DiagnosticsStrip';
-import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveScoringReturns } from '@/engine/live';
+import { getEffectiveScoringDay, getLiveDisplayDay, getLiveScoringReturns } from '@/engine/live';
 import { buildDecayTimeline, dominantSegments, DecayMode } from '@/engine/decay';
 import { EVENT_COLORS } from '@/config/events';
 import { CHART_THEME } from '@/config/theme';
@@ -21,7 +21,7 @@ export function DecayTab() {
   const scoringReturns = getLiveScoringReturns(live);
   const labelsForMode = scoringMode === 'all-available' ? Object.keys(scoringReturns || {}) : similarityAssets;
   const dayN = getEffectiveScoringDay(live, labelsForMode);
-  const effectiveDate = getEffectiveScoringDate(live, labelsForMode);
+  const displayDay = getLiveDisplayDay(live);
   const activeScoreSet = useMemo(
     () => filterScoresByActiveEvents(scores, activeEvents),
     [activeEvents, scores],
@@ -84,7 +84,7 @@ export function DecayTab() {
     <div className="space-y-4 p-4">
       <ChartCard
         title="Signal Decay Tracker"
-        subtitle={`Day 0 -> effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} | ${selectedEventNames.length} active analogue events`}
+        subtitle={`Day 0 -> live D+${displayDay} | ${selectedEventNames.length} active analogue events`}
         controls={
           <div className="flex items-center gap-3">
             <SliderControl label="Step" value={step} onChange={setStep} min={1} max={5} suffix="d" />
@@ -118,9 +118,6 @@ export function DecayTab() {
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="px-4 pt-2 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-              Decay tracks how the analogue ranking evolves as the live event progresses. Coverage-adjusted mode prevents sparse older events from dominating on one or two assets, and event deselection flows straight through this view.
-            </div>
             <div className="px-4 pt-2">
               <span className="text-2xs text-text-muted">Path similarity score over time using {scoringMode === 'live-sim' ? 'the current live sim asset set' : 'all available overlapping comparison assets'}.</span>
             </div>
@@ -179,7 +176,7 @@ export function DecayTab() {
 
             {latestScores.length > 0 && (
               <div className="px-4 pb-4">
-                <span className="text-2xs text-text-muted block mb-2">Current ranking at effective D+{dayN}:</span>
+                <span className="text-2xs text-text-muted block mb-2">Current ranking at the latest live point:</span>
                 <div className="flex flex-wrap gap-2">
                   {latestScores.slice(0, 5).map((score, index) => (
                     <div key={score.event} className="flex items-center gap-1.5 px-2 py-1 bg-bg-cell border border-border/50">
@@ -195,6 +192,9 @@ export function DecayTab() {
                 </div>
               </div>
             )}
+            <BottomDescription>
+              Decay tracks how the analogue ranking evolves as the live event progresses. Coverage-adjusted mode prevents sparse older events from dominating on one or two assets, and event deselection flows straight through this view.
+            </BottomDescription>
           </div>
         )}
       </ChartCard>

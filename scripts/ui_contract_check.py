@@ -13,6 +13,11 @@ def assert_contains(text: str, needle: str, context: str) -> None:
         raise AssertionError(f"Missing `{needle}` in {context}")
 
 
+def assert_not_contains(text: str, needle: str, context: str) -> None:
+    if needle in text:
+        raise AssertionError(f"Unexpected `{needle}` in {context}")
+
+
 def main() -> int:
     assets_text = read("src/config/assets.ts")
     for group in [
@@ -52,6 +57,34 @@ def main() -> int:
 
     prepos_text = read("src/components/tabs/analysis/PrePosTab.tsx")
     assert_contains(prepos_text, "Vol-adjusted", "PrePosTab")
+
+    diagnostics_text = read("src/components/ui/DiagnosticsStrip.tsx")
+    assert_contains(diagnostics_text, "Live D+", "DiagnosticsStrip")
+    assert_not_contains(diagnostics_text, "Effective", "DiagnosticsStrip")
+    assert_not_contains(diagnostics_text, "Score", "DiagnosticsStrip")
+
+    chart_card_text = read("src/components/ui/ChartCard.tsx")
+    assert_contains(chart_card_text, "export function BottomDescription", "ChartCard")
+
+    for rel_path in [
+        "src/components/tabs/historical/OverlayTab.tsx",
+        "src/components/tabs/live/TradeIdeasTab.tsx",
+        "src/components/tabs/live/PathsTab.tsx",
+        "src/components/tabs/live/DetailTab.tsx",
+        "src/components/tabs/risk/StressTab.tsx",
+    ]:
+        tab_text = read(rel_path)
+        assert_contains(tab_text, "BottomDescription", rel_path)
+        for forbidden in [
+            "effective scoring day",
+            "effective live scoring day",
+            "Score D+",
+            "Score date",
+            "effective D+",
+            "Effective D+",
+            "live scored to",
+        ]:
+            assert_not_contains(tab_text, forbidden, rel_path)
 
     print("ui-contract: ok")
     return 0
