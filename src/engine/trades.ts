@@ -259,7 +259,7 @@ export function buildIdeaCorrelationMatrix(
   dayN: number,
   fwdDays: number,
   eventReturns: EventReturns,
-): { labels: string[]; matrix: number[][] } | null {
+): { labels: string[]; matrix: number[][]; overlapCounts: number[][] } | null {
   const focusRows = rows.slice(0, Math.min(12, rows.length));
   if (focusRows.length < 2) return null;
 
@@ -269,6 +269,20 @@ export function buildIdeaCorrelationMatrix(
       const start = poiRet(eventReturns, row.lbl, eventName, dayN);
       const finish = poiRet(eventReturns, row.lbl, eventName, endOffset);
       return !Number.isNaN(start) && !Number.isNaN(finish) ? finish - start : Number.NaN;
+    });
+  });
+
+  const overlapCounts = focusRows.map((_, i) => {
+    return focusRows.map((__, j) => {
+      const a = perAssetValues[i];
+      const b = perAssetValues[j];
+      let overlap = 0;
+      for (let index = 0; index < a.length; index += 1) {
+        if (!Number.isNaN(a[index]) && !Number.isNaN(b[index])) {
+          overlap += 1;
+        }
+      }
+      return overlap;
     });
   });
 
@@ -284,7 +298,15 @@ export function buildIdeaCorrelationMatrix(
           filteredB.push(b[index]);
         }
       }
-      if (filteredA.length < 3) return Number.NaN;
+      if (filteredA.length < 2) return Number.NaN;
+      if (filteredA.length === 2) {
+        const [a0, a1] = filteredA;
+        const [b0, b1] = filteredB;
+        const aDiff = a1 - a0;
+        const bDiff = b1 - b0;
+        if (Math.abs(aDiff) < 1e-9 || Math.abs(bDiff) < 1e-9) return Number.NaN;
+        return Math.sign(aDiff) === Math.sign(bDiff) ? 1 : -1;
+      }
       return corrcoef(filteredA, filteredB);
     });
   });
@@ -292,5 +314,6 @@ export function buildIdeaCorrelationMatrix(
   return {
     labels: focusRows.map((row) => row.lbl),
     matrix,
+    overlapCounts,
   };
 }

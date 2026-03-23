@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, SliderControl, EmptyState } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel, unitLabel, eventDateMap, isAssetAvailableForEvent } from '@/engine/returns';
-import { getSeriesPointAtOrBefore } from '@/engine/live';
+import { getLiveDisplayDay, getSeriesPointAtOrBefore } from '@/engine/live';
 import { POIS, PRE_WINDOW_TD, POST_WINDOW_TD } from '@/config/engine';
 import { CHART_THEME } from '@/config/theme';
 import { alphaThemeColor, getEventSeriesColor, THEME_COLORS, THEME_FONTS } from '@/theme/chart';
@@ -27,6 +27,8 @@ interface ScatterPoint {
 
 export function ScatterTab() {
   const { eventReturns, assetMeta, allLabels, events, activeEvents, availability, live } = useDashboard();
+  const liveDisplayDay = getLiveDisplayDay(live);
+  const hasLiveSeries = !!live.returns && Object.keys(live.returns).length > 0;
 
   const [xAsset, setXAsset] = useState<string>('');
   const [yAsset, setYAsset] = useState<string>('');
@@ -68,9 +70,9 @@ export function ScatterTab() {
       points.push({ x: xValue, y: yValue, event: event.name, isLive: false });
     }
 
-    if (live.returns && live.dayN !== null) {
-      const xLivePoint = getSeriesPointAtOrBefore(live.returns[xAsset], live.dayN);
-      const yLivePoint = getSeriesPointAtOrBefore(live.returns[yAsset], live.dayN);
+    if (live.returns && hasLiveSeries) {
+      const xLivePoint = getSeriesPointAtOrBefore(live.returns[xAsset], liveDisplayDay);
+      const yLivePoint = getSeriesPointAtOrBefore(live.returns[yAsset], liveDisplayDay);
       if (xLivePoint && yLivePoint) {
         const xBasePoint = stepMode ? getSeriesPointAtOrBefore(live.returns[xAsset], stepDay) : null;
         const yBasePoint = stepMode ? getSeriesPointAtOrBefore(live.returns[yAsset], stepDay) : null;
@@ -84,7 +86,7 @@ export function ScatterTab() {
     }
 
     return points;
-  }, [activeEvents, availability, eventDates, eventReturns, events, live.dayN, live.name, live.returns, poi, stepDay, stepMode, xAsset, yAsset]);
+  }, [activeEvents, availability, eventDates, eventReturns, events, hasLiveSeries, live.name, live.returns, liveDisplayDay, poi, stepDay, stepMode, xAsset, yAsset]);
 
   const regression = useMemo(() => {
     if (chartData.length < 2) return null;

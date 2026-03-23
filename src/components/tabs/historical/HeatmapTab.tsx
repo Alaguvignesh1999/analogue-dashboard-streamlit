@@ -7,6 +7,7 @@ import { anchorSeriesValue, displayLabel, unitLabel, eventDateMap, isAssetAvaila
 import { POIS } from '@/config/engine';
 import { CHART_THEME } from '@/config/theme';
 import { themedHeatColor } from '@/theme/chart';
+import { getLiveDisplayDay } from '@/engine/live';
 
 function heatColor(value: number, maxAbs: number, isRates: boolean): string {
   if (isNaN(value)) return CHART_THEME.bgCell;
@@ -15,6 +16,8 @@ function heatColor(value: number, maxAbs: number, isRates: boolean): string {
 
 export function HeatmapTab() {
   const { eventReturns, assetMeta, allClasses, events, activeEvents, live, availability } = useDashboard();
+  const liveDisplayDay = getLiveDisplayDay(live);
+  const hasLiveSeries = !!live.returns && Object.keys(live.returns).length > 0;
 
   const [selectedClass, setSelectedClass] = useState('Oil & Energy');
   const [selectedAsset, setSelectedAsset] = useState('Brent Futures');
@@ -59,7 +62,7 @@ export function HeatmapTab() {
       rows.push(row);
     }
 
-    if (live.returns?.[selectedAsset] && live.dayN !== null) {
+    if (live.returns?.[selectedAsset] && hasLiveSeries) {
       const row: Array<number | null> = [];
       for (const poi of POIS) {
         const value = anchorSeriesValue(live.returns[selectedAsset], poi.offset, 'day0');
@@ -71,7 +74,7 @@ export function HeatmapTab() {
     }
 
     return { matrix: rows, maxAbs: maxValue || 5 };
-  }, [activeEventNames, availability, eventDates, eventReturns, live.dayN, live.returns, selectedAsset]);
+  }, [activeEventNames, availability, eventDates, eventReturns, hasLiveSeries, live.returns, selectedAsset]);
 
   const meta = assetMeta[selectedAsset];
   const isRates = meta?.is_rates_bp || false;
@@ -79,7 +82,7 @@ export function HeatmapTab() {
   const title = displayLabel(meta, selectedAsset);
   const rowLabels = [
     ...activeEventNames,
-    ...(live.returns?.[selectedAsset] && live.dayN !== null ? [`Live: ${live.name} (D+${live.dayN})`] : []),
+    ...(live.returns?.[selectedAsset] && hasLiveSeries ? [`Live: ${live.name} (D+${liveDisplayDay})`] : []),
   ];
 
   return (

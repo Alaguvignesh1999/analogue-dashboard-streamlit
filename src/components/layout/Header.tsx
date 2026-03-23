@@ -5,6 +5,7 @@ import { useDashboard } from '@/store/dashboard';
 import { Zap, Settings, Wifi, WifiOff } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { THEME_COLORS } from '@/theme/chart';
+import { getLiveDisplayDay } from '@/engine/live';
 
 function badgeClasses(tone: 'teal' | 'amber' | 'red' | 'purple') {
   if (tone === 'teal') return 'bg-accent-teal/10 text-accent-teal border-accent-teal/20';
@@ -15,6 +16,8 @@ function badgeClasses(tone: 'teal' | 'amber' | 'red' | 'purple') {
 
 export function Header() {
   const { live, dataLoaded, lastUpdated, provenance } = useDashboard();
+  const liveDisplayDay = getLiveDisplayDay(live);
+  const hasLiveData = !!live.returns && Object.keys(live.returns).length > 0 && !!live.name;
 
   const historicalBadge = useMemo(() => {
     const label = provenance.historicalSource === 'sample' ? 'Sample historical' : 'Generated historical';
@@ -64,7 +67,7 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-3">
-        {live.dayN !== null && (
+        {hasLiveData && (
           <div className="flex items-center gap-2 px-2.5 py-1 bg-live/5 border border-live/20 rounded-sm animate-fade-in">
             <div className="relative w-1.5 h-1.5">
               <div className="absolute inset-0 rounded-full bg-live" />
@@ -73,7 +76,7 @@ export function Header() {
             <span className="text-2xs text-live font-medium font-mono tracking-[0.08em] uppercase">
               {live.name}
             </span>
-            <span className="text-2xs text-live/60 font-mono">D+{live.dayN}</span>
+            <span className="text-2xs text-live/60 font-mono">D+{liveDisplayDay}</span>
           </div>
         )}
 

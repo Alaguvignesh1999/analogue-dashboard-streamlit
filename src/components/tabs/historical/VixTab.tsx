@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { BottomDescription, ChartCard } from '@/components/ui/ChartCard';
-import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
+import { getLiveDisplayDate, getLiveDisplayDay } from '@/engine/live';
 import { nanMedian, nanPercentile } from '@/lib/math';
 import { PRE_WINDOW_TD, POST_WINDOW_TD, POIS } from '@/config/engine';
 import { CHART_THEME } from '@/config/theme';
@@ -20,8 +20,8 @@ export function VixTab() {
     () => events.filter((event) => activeEvents.has(event.name) && !!eventReturns.VIX?.[event.name]).map((event) => event.name),
     [activeEvents, eventReturns, events],
   );
-  const liveVixDay = getEffectiveScoringDay(live, ['VIX']);
-  const liveVixDate = getEffectiveScoringDate(live, ['VIX']);
+  const liveVixDay = getLiveDisplayDay(live);
+  const liveVixDate = getLiveDisplayDate(live);
   const dayZeroStyle = dayZeroMarkerStyle();
 
   const { chartData, hasData, medianStats } = useMemo(() => {
