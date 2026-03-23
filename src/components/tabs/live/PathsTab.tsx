@@ -1,9 +1,10 @@
 'use client';
 import { useMemo, useState, useEffect } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
+import { DiagnosticsStrip } from '@/components/ui/DiagnosticsStrip';
 import { displayLabel, unitLabel, poiRet } from '@/engine/returns';
-import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveScoringDay } from '@/engine/live';
+import { getLiveDisplayDay, getLiveDisplayDate } from '@/engine/live';
 import { filterScoresByActiveEvents, selectEvents, compositeReturn } from '@/engine/similarity';
 import { POIS, POST_WINDOW_TD } from '@/config/engine';
 import { nanMedian } from '@/lib/math';
@@ -45,9 +46,8 @@ export function PathsTab() {
 
   const activeScores = useMemo(() => filterScoresByActiveEvents(scores, activeEvents), [activeEvents, scores]);
   const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
-  const dayN = getEffectiveScoringDay(live, [selectedAsset]);
-  const displayDayN = getLiveScoringDay(live);
-  const effectiveDate = getEffectiveScoringDate(live, [selectedAsset]);
+  const displayDayN = getLiveDisplayDay(live);
+  const displayDate = getLiveDisplayDate(live);
   const meta = assetMeta[selectedAsset];
   const isRates = meta?.is_rates_bp || false;
   const unit = unitLabel(meta);
@@ -72,14 +72,14 @@ export function PathsTab() {
   }, [activeScores, eventReturns, selectedAsset, selectedEvents, live, displayDayN]);
 
   const fwdHeatmap = useMemo(() => {
-    const futurePois = POIS.filter((poi) => poi.offset > dayN);
+    const futurePois = POIS.filter((poi) => poi.offset > displayDayN);
     if (futurePois.length === 0 || selectedEvents.length === 0) return null;
 
     let maxAbs = 0;
-    const rows = futurePois.map((poi) => {
-      const values: number[] = [];
-      for (const eventName of selectedEvents) {
-        const startValue = poiRet(eventReturns, selectedAsset, eventName, dayN);
+      const rows = futurePois.map((poi) => {
+        const values: number[] = [];
+        for (const eventName of selectedEvents) {
+        const startValue = poiRet(eventReturns, selectedAsset, eventName, displayDayN);
         const finishValue = poiRet(eventReturns, selectedAsset, eventName, poi.offset);
         if (!Number.isNaN(startValue) && !Number.isNaN(finishValue)) values.push(finishValue - startValue);
       }
@@ -89,7 +89,7 @@ export function PathsTab() {
     });
 
     return { rows, maxAbs: maxAbs || 5 };
-  }, [eventReturns, selectedAsset, selectedEvents, dayN]);
+  }, [eventReturns, selectedAsset, selectedEvents, displayDayN]);
 
   const chartStats = useMemo(() => {
     if (selectedEvents.length === 0 || chartData.length === 0) return { range: 0, current: 0 };
@@ -104,7 +104,7 @@ export function PathsTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title={`Path - ${displayLabel(meta, selectedAsset)}`}
-        subtitle={`${selectedEvents.length} analogues | effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} | display D+${displayDayN} | ${unit}`}
+        subtitle={`${selectedEvents.length} analogues | live D+${displayDayN}${displayDate ? ` (${displayDate})` : ''} | ${unit}`}
         controls={
           <div className="flex items-center gap-2">
             <Select label="" value={selectedClass} onChange={setSelectedClass} options={allClasses.map((groupName) => ({ value: groupName, label: groupName }))} />
@@ -118,14 +118,17 @@ export function PathsTab() {
           </div>
         ) : (
           <>
-            <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-              The orange line is the live display path through the latest available calendar day, while the score marker shows the effective trading day used for matching. The composite line is the weighted analogue blend for the same asset and event window.
-            </div>
+            <DiagnosticsStrip
+              live={live}
+              labels={[selectedAsset]}
+              scoringMode="live-sim"
+              extra={<span>Path asset: {displayLabel(meta, selectedAsset)}</span>}
+            />
 
             <div className="px-4 pt-4 grid grid-cols-3 gap-3">
               <StatBox label="Live Path" value={`${chartStats.current > 0 ? '+' : ''}${chartStats.current.toFixed(1)}`} color={chartStats.current >= 0 ? '#22c55e' : '#ef4444'} />
               <StatBox label="Range" value={`+/-${chartStats.range.toFixed(1)}`} color="#00d4aa" />
-              <StatBox label="Analogues" value={selectedEvents.length} color="#ffffff" />
+              <StatBox label="Analogues" value={selectedEvents.length} sub={displayDate || '--'} color="#ffffff" />
             </div>
 
             <div className="h-[400px] p-2">
@@ -154,8 +157,12 @@ export function PathsTab() {
                     iconType="line"
                   />
                   <ReferenceLine y={0} stroke="#3a3a4e" strokeWidth={1} />
-                  <ReferenceLine x={dayN} stroke="#ffab40" strokeDasharray="3 3" label={{ value: 'Score', position: 'top', fill: '#ffab40', fontSize: 10 }} />
-
+                  <ReferenceLine
+                    x={displayDayN}
+                    stroke="#ffab40"
+                    strokeDasharray="3 3"
+                    label={{ value: `D+${displayDayN}`, position: 'top', fill: '#ffab40', fontSize: 10 }}
+                  />
                   {selectedEvents.map((eventName, index) => (
                     <Line
                       key={eventName}
@@ -183,12 +190,15 @@ export function PathsTab() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+            <BottomDescription>
+              The orange live line and orange vertical marker use the same live D+N logic as Overlay, so both tabs show the same current live point.
+            </BottomDescription>
           </>
         )}
       </ChartCard>
 
       {fwdHeatmap && selectedEvents.length > 0 && (
-        <ChartCard title="Forward Returns" subtitle={`Median forward from effective D+${dayN} to each POI`}>
+        <ChartCard title="Forward Returns" subtitle={`Median forward from live D+${displayDayN} to future POIs`}>
           <div className="p-4 flex gap-1.5 flex-wrap">
             {fwdHeatmap.rows.map((row) => (
               <div

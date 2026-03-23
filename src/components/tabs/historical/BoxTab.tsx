@@ -1,7 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, Badge } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, Badge } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel } from '@/engine/returns';
 import { POIS } from '@/config/engine';
 import { CUSTOM_GROUPS } from '@/config/assets';
@@ -92,10 +92,6 @@ export function BoxTab() {
           </div>
         }
       >
-        <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-          Each row uses a shared numeric axis within each horizon cell, so you can compare both sign and magnitude. The box shows the interquartile range, the center line is the median, and the whiskers show the full observed range.
-        </div>
-
         <div className="overflow-x-auto border-t border-border/40">
           <table className="w-full border-collapse text-2xs font-mono">
             <thead>
@@ -167,6 +163,9 @@ export function BoxTab() {
             </tbody>
           </table>
         </div>
+        <BottomDescription>
+          Each row uses a shared numeric axis within each horizon cell, so you can compare both sign and magnitude. The box shows the interquartile range, the center line is the median, and the whiskers show the full observed range.
+        </BottomDescription>
       </ChartCard>
     </div>
   );

@@ -121,7 +121,9 @@ vercel deploy --prod -y
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Operations](docs/OPERATIONS.md)
+- [Live State Model](docs/LIVE_STATE_MODEL.md)
 - [Notebook Parity Notes](docs/NOTEBOOK_PARITY.md)
+- [Scoring Pipeline](docs/SCORING_PIPELINE.md)
 - [Changelog](CHANGELOG.md)
 
 ## Important Operational Notes

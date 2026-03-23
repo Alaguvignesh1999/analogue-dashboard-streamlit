@@ -463,16 +463,14 @@ export function LiveConfigTab() {
                   : 'Private live scenario active'}
             </span>
           </div>
-          <div className="grid grid-cols-5 gap-3 text-[10px] text-[#6a6a7a]">
-            <div>Day+{live.dayN}</div>
-            <div>Trading D+{live.tradingDayN ?? '--'}</div>
-            <div>Analysis D+{analysisDay}</div>
-            <div>Effective D+{effectiveScoringDay ?? '--'}</div>
+          <div className="grid grid-cols-3 gap-3 text-[10px] text-[#6a6a7a]">
+            <div>Live D+{analysisDay}</div>
             <div>{Object.keys(live.returns || {}).length} assets</div>
+            <div>Mode: {live.requestMode || (provenance.liveSource === 'demo' ? 'demo' : '--')}</div>
           </div>
           <div className="grid grid-cols-2 gap-3 text-[10px] text-[#6a6a7a] mt-2">
             <div>{TRIGGER_ASSET}: ${live.trigger?.toFixed(2)}</div>
-            <div>Analysis date: {analysisDate || effectiveScoringDate || '--'}</div>
+            <div>Live date: {analysisDate || '--'}</div>
           </div>
           {liveAnchorNote && (
             <div className="mt-2 text-[10px] text-[#ffab40]">
@@ -516,14 +514,12 @@ export function LiveConfigTab() {
               />
               <div className="text-[10px] text-[#6a6a7a]">
                 {analysisOverrideEnabled
-                  ? `Override active: scoring behaves as if we are only at D+${analysisDay}${analysisDate ? ` (${analysisDate})` : ''}.`
-                  : `Latest live basis remains D+${maxAnalysisDay}${effectiveScoringDate ? ` (${effectiveScoringDate})` : ''}.`}
+                  ? `Override active: analysis behaves as if we are only at D+${analysisDay}${analysisDate ? ` (${analysisDate})` : ''}.`
+                  : `Latest live state remains D+${maxAnalysisDay}${analysisDate ? ` (${analysisDate})` : ''}.`}
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3 text-[10px] text-[#6a6a7a] mt-2">
-            <div>Mode: {live.requestMode || (provenance.liveSource === 'demo' ? 'demo' : '--')}</div>
-            <div>Score date: {effectiveScoringDate || '--'}</div>
+          <div className="grid grid-cols-2 gap-3 text-[10px] text-[#6a6a7a] mt-2">
             <div>Snapshot: {live.snapshotDate || '--'}</div>
             <div>Warnings: {live.warnings.length}</div>
           </div>

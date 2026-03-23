@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, EmptyState, Button, Badge } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, EmptyState, Button, Badge } from '@/components/ui/ChartCard';
 import { anchorSeriesValue, displayLabel, isSparsePoiSeries, unitLabel } from '@/engine/returns';
 import { POIS, PRE_WINDOW_TD, POST_WINDOW_TD } from '@/config/engine';
 import { CUSTOM_GROUPS } from '@/config/assets';
@@ -220,10 +220,6 @@ export function CrossAssetTab() {
           </div>
         }
       >
-        <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-          Asset selection persists independently of the group browser, so you can browse one group without losing assets already chosen from another. All series are anchored to Day 0 for the selected event; if units differ across assets, treat the chart as a visual relative comparison rather than a like-for-like magnitude comparison.
-        </div>
-
         <div className="p-4 border-b border-border/40 space-y-3">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">
@@ -356,6 +352,9 @@ export function CrossAssetTab() {
             </div>
           </div>
         )}
+        <BottomDescription>
+          Asset selection persists independently of the group browser, so you can browse one group without losing assets already chosen from another. All series are anchored to Day 0 for the selected event; if units differ across assets, treat the chart as a visual relative comparison rather than a like-for-like magnitude comparison.
+        </BottomDescription>
       </ChartCard>
     </div>
   );

@@ -52,6 +52,13 @@ interface AnalogueWeightsState {
   macro: number;
 }
 
+interface UiPrefsState {
+  selectedDetailAsset: string | null;
+  selectedDetailHorizon: number | null;
+  selectedTradeIdea: string | null;
+  scoringMode: 'live-sim' | 'all-available';
+}
+
 interface DashboardState {
   activeGroup: TabGroup;
   activeTab: TabId;
@@ -108,9 +115,15 @@ interface DashboardState {
   setAnalogueWeights: (patch: Partial<AnalogueWeightsState>) => void;
   similarityAssets: string[];
   setSimilarityAssets: (assets: string[]) => void;
+  scoringMode: 'live-sim' | 'all-available';
+  setScoringMode: (mode: 'live-sim' | 'all-available') => void;
 
   horizon: number;
   setHorizon: (h: number) => void;
+  selectedDetailAsset: string | null;
+  selectedDetailHorizon: number | null;
+  selectedTradeIdea: string | null;
+  setDetailContext: (patch: Partial<Pick<DashboardState, 'selectedDetailAsset' | 'selectedDetailHorizon' | 'selectedTradeIdea'>>) => void;
 
   activeEvents: Set<string>;
   toggleEvent: (name: string) => void;
@@ -125,6 +138,7 @@ interface DashboardState {
 }
 
 const CUSTOM_EVENTS_STORAGE_KEY = 'analogue-dashboard.custom-events.v1';
+const UI_PREFS_STORAGE_KEY = 'analogue-dashboard.ui-prefs.v1';
 
 function persistCustomEvents(customEvents: CustomEventDef[], eventReturns: EventReturns) {
   if (typeof window === 'undefined') return;
@@ -138,6 +152,50 @@ function persistCustomEvents(customEvents: CustomEventDef[], eventReturns: Event
   }));
   window.localStorage.setItem(CUSTOM_EVENTS_STORAGE_KEY, JSON.stringify(payload));
 }
+
+function loadUiPrefs(): UiPrefsState {
+  if (typeof window === 'undefined') {
+    return {
+      selectedDetailAsset: null,
+      selectedDetailHorizon: null,
+      selectedTradeIdea: null,
+      scoringMode: 'live-sim',
+    };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(UI_PREFS_STORAGE_KEY);
+    if (!raw) {
+      return {
+        selectedDetailAsset: null,
+        selectedDetailHorizon: null,
+        selectedTradeIdea: null,
+        scoringMode: 'live-sim',
+      };
+    }
+    const parsed = JSON.parse(raw) as Partial<UiPrefsState>;
+    return {
+      selectedDetailAsset: parsed.selectedDetailAsset ?? null,
+      selectedDetailHorizon: parsed.selectedDetailHorizon ?? null,
+      selectedTradeIdea: parsed.selectedTradeIdea ?? null,
+      scoringMode: parsed.scoringMode === 'all-available' ? 'all-available' : 'live-sim',
+    };
+  } catch {
+    return {
+      selectedDetailAsset: null,
+      selectedDetailHorizon: null,
+      selectedTradeIdea: null,
+      scoringMode: 'live-sim',
+    };
+  }
+}
+
+function persistUiPrefs(prefs: UiPrefsState) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(UI_PREFS_STORAGE_KEY, JSON.stringify(prefs));
+}
+
+const initialUiPrefs = loadUiPrefs();
 
 export const useDashboard = create<DashboardState>((set) => ({
   activeGroup: 'historical',
@@ -296,9 +354,36 @@ export const useDashboard = create<DashboardState>((set) => ({
   }),
   similarityAssets: [...DEFAULT_LIVE_SIM_ASSETS],
   setSimilarityAssets: (assets) => set({ similarityAssets: assets }),
+  scoringMode: initialUiPrefs.scoringMode,
+  setScoringMode: (mode) => set((state) => {
+    persistUiPrefs({
+      selectedDetailAsset: state.selectedDetailAsset,
+      selectedDetailHorizon: state.selectedDetailHorizon,
+      selectedTradeIdea: state.selectedTradeIdea,
+      scoringMode: mode,
+    });
+    return { scoringMode: mode };
+  }),
 
   horizon: 21,
   setHorizon: (h) => set({ horizon: h }),
+  selectedDetailAsset: initialUiPrefs.selectedDetailAsset,
+  selectedDetailHorizon: initialUiPrefs.selectedDetailHorizon,
+  selectedTradeIdea: initialUiPrefs.selectedTradeIdea,
+  setDetailContext: (patch) => set((state) => {
+    const nextPrefs: UiPrefsState = {
+      selectedDetailAsset: patch.selectedDetailAsset ?? state.selectedDetailAsset,
+      selectedDetailHorizon: patch.selectedDetailHorizon ?? state.selectedDetailHorizon,
+      selectedTradeIdea: patch.selectedTradeIdea ?? state.selectedTradeIdea,
+      scoringMode: state.scoringMode,
+    };
+    persistUiPrefs(nextPrefs);
+    return {
+      selectedDetailAsset: nextPrefs.selectedDetailAsset,
+      selectedDetailHorizon: nextPrefs.selectedDetailHorizon,
+      selectedTradeIdea: nextPrefs.selectedTradeIdea,
+    };
+  }),
 
   activeEvents: new Set(EVENTS.map((event) => event.name)),
   toggleEvent: (name) => set((state) => {

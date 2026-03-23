@@ -4,7 +4,7 @@ import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel } from '@/engine/returns';
 import { POIS } from '@/config/engine';
-import { CUSTOM_GROUPS } from '@/config/assets';
+import { ALL_ASSETS_OPTION, getGroupLabels, groupOptionsFromData } from '@/config/assets';
 import { nanMean, corrcoef } from '@/lib/math';
 
 function leadLagColor(value: number, maxAbs: number): string {
@@ -15,14 +15,13 @@ function leadLagColor(value: number, maxAbs: number): string {
 }
 
 export function LeadLagTab() {
-  const { eventReturns, assetMeta, events, activeEvents } = useDashboard();
+  const { eventReturns, assetMeta, events, activeEvents, allLabels, allClasses } = useDashboard();
   const [selectedGroup, setSelectedGroup] = useState('Risk Barometer');
 
   const groupAssets = useMemo(() => {
-    const assets = CUSTOM_GROUPS[selectedGroup];
-    if (!assets) return [];
+    const assets = getGroupLabels(selectedGroup, allLabels, assetMeta);
     return assets.filter((asset) => eventReturns[asset] && Object.keys(eventReturns[asset]).length > 0);
-  }, [selectedGroup, eventReturns]);
+  }, [selectedGroup, eventReturns, allLabels, assetMeta]);
 
   const activeEventNames = useMemo(
     () => events.filter((event) => activeEvents.has(event.name)).map((event) => event.name),
@@ -102,8 +101,8 @@ export function LeadLagTab() {
   }, [activeEventNames, eventReturns, groupAssets]);
 
   const groupOptions = useMemo(
-    () => Object.keys(CUSTOM_GROUPS).sort().map((groupName) => ({ value: groupName, label: groupName })),
-    [],
+    () => groupOptionsFromData(allClasses).filter((option) => option.value !== ALL_ASSETS_OPTION),
+    [allClasses],
   );
 
   return (

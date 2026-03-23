@@ -2,138 +2,32 @@
 
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select } from '@/components/ui/ChartCard';
-import { poiRet, displayLabel, unitLabel } from '@/engine/returns';
-import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveReturnPointAtOrBefore, getLiveScoringReturns } from '@/engine/live';
+import { BottomDescription, ChartCard, Select, Badge } from '@/components/ui/ChartCard';
+import { DiagnosticsStrip } from '@/components/ui/DiagnosticsStrip';
+import { displayLabel } from '@/engine/returns';
+import { getEffectiveScoringDay, getLiveDiagnosticsSummary, getLiveDisplayDay, getLiveDisplayDate } from '@/engine/live';
 import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
-import { nanMedian, nanMean, nanStd, nanPercentile } from '@/lib/math';
-import { stars, statusFromPctile, fmtReturn } from '@/lib/format';
-import { CUSTOM_GROUPS } from '@/config/assets';
-import { useDashboard as dashboardStore } from '@/store/dashboard';
+import { computeTradeRows } from '@/engine/trades';
+import { fmtReturn } from '@/lib/format';
+import { ALL_ASSETS_OPTION, getGroupLabels, groupOptionsFromData } from '@/config/assets';
 
-export interface TradeRow {
-  lbl: string;
-  cls: string;
-  ticker: string;
-  dir: 'LONG' | 'SHORT';
-  med: number;
-  mean: number;
-  std: number;
-  iqr: number;
-  stars: string;
-  n: number;
-  nTotal: number;
-  unit: string;
-  isRates: boolean;
-  hitRate: number;
-  sharpe: number;
-  sortino: number;
-  skew: number;
-  worst: number;
-  liveGap: number;
-  livePctile: number;
-  status: string;
-  fwdVals: number[];
+function hitRateClass(hitRate: number): string {
+  if (hitRate >= 0.75) return 'text-accent-teal';
+  if (hitRate >= 0.6) return 'text-up';
+  if (hitRate >= 0.5) return 'text-accent-amber';
+  return 'text-down';
 }
 
-function computeTradeRows(
-  labels: string[],
-  eventReturns: Record<string, Record<string, Record<number, number>>>,
-  assetMeta: Record<string, any>,
-  selectedEvents: string[],
-  dayN: number,
-  fwdDays: number,
-  live: ReturnType<typeof dashboardStore.getState>['live'],
-): TradeRow[] {
-  const nSel = selectedEvents.length;
-  const forwardOffset = dayN + fwdDays;
-  if (forwardOffset <= dayN) return [];
+function moveClass(value: number, dir: 'LONG' | 'SHORT'): string {
+  const favorable = dir === 'LONG' ? value >= 0 : value <= 0;
+  return favorable ? 'text-up' : 'text-down';
+}
 
-  const rows: TradeRow[] = [];
-
-  for (const label of labels) {
-    const fwdVals: number[] = [];
-    for (const eventName of selectedEvents) {
-      const startValue = poiRet(eventReturns, label, eventName, dayN);
-      const finishValue = poiRet(eventReturns, label, eventName, forwardOffset);
-      if (!Number.isNaN(startValue) && !Number.isNaN(finishValue)) fwdVals.push(finishValue - startValue);
-    }
-    if (fwdVals.length < 2) continue;
-
-    const med = nanMedian(fwdVals);
-    const mean = nanMean(fwdVals);
-    const std = nanStd(fwdVals);
-    const iqr = nanPercentile(fwdVals, 75) - nanPercentile(fwdVals, 25);
-    const isRates = assetMeta[label]?.is_rates_bp || false;
-    const unit = unitLabel(assetMeta[label]);
-
-    const hitRate = fwdVals.filter((value) =>
-      (med > 0 && value > 0) || (med < 0 && value < 0)
-    ).length / fwdVals.length;
-
-    const direction = med >= 0 ? 1 : -1;
-    const adjustedValues = fwdVals.map((value) => direction * value);
-    const meanAdjusted = nanMean(adjustedValues);
-    const stdAdjusted = nanStd(adjustedValues);
-    const sharpe = meanAdjusted / (stdAdjusted + 1e-9);
-    const downsideValues = adjustedValues.filter((value) => value < 0);
-    const downsideStd = downsideValues.length > 1 ? nanStd(downsideValues) : stdAdjusted + 1e-9;
-    const sortino = meanAdjusted / (downsideStd + 1e-9);
-    const worst = Math.min(...adjustedValues);
-
-    let skew = 0;
-    if (fwdVals.length >= 3) {
-      const meanValue = nanMean(fwdVals);
-      const stdValue = nanStd(fwdVals);
-      if (stdValue > 0) {
-        skew = fwdVals.reduce((sum, value) => sum + ((value - meanValue) / stdValue) ** 3, 0) / fwdVals.length;
-      }
-    }
-
-    let liveGap = Number.NaN;
-    let livePctile = Number.NaN;
-    const livePoint = getLiveReturnPointAtOrBefore(live, label, dayN);
-    if (livePoint) {
-      const historicalAtLivePoint: number[] = [];
-      for (const eventName of selectedEvents) {
-        const value = poiRet(eventReturns, label, eventName, livePoint.offset);
-        if (!Number.isNaN(value)) historicalAtLivePoint.push(value);
-      }
-      if (historicalAtLivePoint.length >= 2) {
-        liveGap = livePoint.value - nanMedian(historicalAtLivePoint);
-        livePctile = (historicalAtLivePoint.filter((value) => livePoint.value > value).length / historicalAtLivePoint.length) * 100;
-      }
-    }
-
-    const meta = assetMeta[label] || {};
-    rows.push({
-      lbl: label,
-      cls: meta.class || '',
-      ticker: meta.ticker || '',
-      dir: med >= 0 ? 'LONG' : 'SHORT',
-      med,
-      mean,
-      std,
-      iqr,
-      stars: stars(iqr, med),
-      n: fwdVals.length,
-      nTotal: nSel,
-      unit,
-      isRates,
-      hitRate,
-      sharpe,
-      sortino,
-      skew,
-      worst,
-      liveGap,
-      livePctile,
-      status: statusFromPctile(Number.isNaN(livePctile) ? null : livePctile),
-      fwdVals,
-    });
-  }
-
-  rows.sort((left, right) => right.sharpe - left.sharpe);
-  return rows;
+function gapClass(value: number): string {
+  if (Number.isNaN(value)) return 'text-text-dim';
+  if (value >= 0) return 'text-up';
+  if (value >= -0.25) return 'text-accent-amber';
+  return 'text-down';
 }
 
 export function TradeIdeasTab() {
@@ -141,58 +35,56 @@ export function TradeIdeasTab() {
     eventReturns,
     assetMeta,
     allLabels,
+    allClasses,
     scores,
     scoreCutoff,
     horizon,
     live,
     activeEvents,
+    activeTab,
+    selectedTradeIdea,
+    setDetailContext,
+    setActiveGroup,
+    setActiveTab,
   } = useDashboard();
 
-  const [group, setGroup] = useState('-- All Assets --');
+  const [group, setGroup] = useState(ALL_ASSETS_OPTION);
 
   const activeScores = useMemo(() => filterScoresByActiveEvents(scores, activeEvents), [activeEvents, scores]);
   const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
-  const scoringReturns = getLiveScoringReturns(live);
-
-  const labels = useMemo(() => {
-    if (group === '-- All Assets --') return allLabels;
-    if (CUSTOM_GROUPS[group]) return CUSTOM_GROUPS[group].filter((label) => allLabels.includes(label));
-    return allLabels.filter((label) => assetMeta[label]?.class === group);
-  }, [group, allLabels, assetMeta]);
-
+  const labels = useMemo(
+    () => getGroupLabels(group, allLabels, assetMeta),
+    [group, allLabels, assetMeta],
+  );
   const dayN = getEffectiveScoringDay(live, labels);
-  const effectiveDate = getEffectiveScoringDate(live, labels);
-
+  const displayDay = getLiveDisplayDay(live);
+  const displayDate = getLiveDisplayDate(live);
   const rows = useMemo(
     () => computeTradeRows(labels, eventReturns, assetMeta, selectedEvents, dayN, horizon, live),
     [labels, eventReturns, assetMeta, selectedEvents, dayN, horizon, live],
   );
-
-  const groupOptions = useMemo(
-    () => [
-      { value: '-- All Assets --', label: '-- All Assets --' },
-      ...Object.keys(CUSTOM_GROUPS).sort().map((groupName) => ({ value: groupName, label: groupName })),
-    ],
-    [],
-  );
+  const diagnostics = useMemo(() => getLiveDiagnosticsSummary(live, labels), [live, labels]);
+  const groupOptions = useMemo(() => groupOptionsFromData(allClasses), [allClasses]);
 
   return (
     <ChartCard
       title="Trade Ideas"
-      subtitle={`${rows.length} ideas | effective D+${dayN}${effectiveDate ? ` (${effectiveDate})` : ''} -> D+${dayN + horizon} (+${horizon}d) | ${selectedEvents.length} analogues | cutoff ${scoreCutoff.toFixed(2)}`}
+      subtitle={`${rows.length} ideas | live D+${displayDay}${displayDate ? ` (${displayDate})` : ''} -> D+${displayDay + horizon} | ${selectedEvents.length} analogues`}
       controls={
         <Select label="Group" value={group} onChange={setGroup} options={groupOptions} />
       }
     >
-      <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-        Gap and percentile use the latest valid live move on or before the effective scoring day, then compare it to the analogue distribution at that same point. Status means: Still open below the 25th percentile, On track from the 25th to 50th, Chasing from the 50th to 75th, Extended above the 75th.
-      </div>
-
+      <DiagnosticsStrip
+        live={live}
+        labels={labels}
+        scoringMode="live-sim"
+        extra={<span>Click any row to open Detail with the same asset and horizon.</span>}
+      />
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-2xs font-mono">
           <thead>
             <tr className="bg-bg-cell">
-              {['#', 'Asset', 'Class', 'Dir', `+${horizon}d`, 'Median', 'Hit%', 'Sharpe', 'Sortino', 'Skew', 'Worst', 'Gap', 'Pctile', 'Status', 'Conv', 'N'].map((header) => (
+              {['#', 'Asset', 'Class', 'Dir', `D+${displayDay}->D+${displayDay + horizon}`, 'Median', 'Hit%', 'Sharpe', 'Sortino', 'Worst', 'Gap', 'Pctile', 'Status', 'Coverage', 'Conv', 'N'].map((header) => (
                 <th key={header} className="px-2 py-1.5 text-text-muted border-b border-border font-medium text-center whitespace-nowrap">
                   {header}
                 </th>
@@ -203,27 +95,48 @@ export function TradeIdeasTab() {
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={16} className="px-4 py-8 text-center text-text-dim">
-                  {scoringReturns ? 'No trade ideas at current settings.' : 'Run L1 Config to pull live data first.'}
+                  {!live.returns
+                    ? 'Run L1 Config to load live data first.'
+                    : selectedEvents.length === 0
+                      ? 'No analogue events are currently selected. Re-score or loosen the cutoff.'
+                      : 'No trade ideas passed the current filters for this group.'}
                 </td>
               </tr>
             ) : rows.map((row, index) => {
-              const dirColor = row.dir === 'LONG' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
+              const dirColor = row.dir === 'LONG' ? 'rgba(34,197,94,0.10)' : 'rgba(239,68,68,0.10)';
+              const isSelected = selectedTradeIdea === row.lbl && activeTab === 'l5-detail';
               return (
-                <tr key={row.lbl} className="hover:bg-bg-hover/40 transition-colors" style={{ backgroundColor: dirColor }}>
+                <tr
+                  key={row.lbl}
+                  className="hover:bg-bg-hover/40 transition-colors cursor-pointer"
+                  style={{ backgroundColor: isSelected ? 'rgba(0,212,170,0.08)' : dirColor }}
+                  onClick={() => {
+                    setDetailContext({
+                      selectedDetailAsset: row.lbl,
+                      selectedDetailHorizon: horizon,
+                      selectedTradeIdea: row.lbl,
+                    });
+                    setActiveGroup('live');
+                    setActiveTab('l5-detail');
+                  }}
+                >
                   <td className="px-2 py-1 text-center text-text-dim border-b border-border/30">{index + 1}</td>
                   <td className="px-2 py-1 text-left text-text-primary border-b border-border/30 whitespace-nowrap font-medium">
-                    {displayLabel(assetMeta[row.lbl], row.lbl)}
+                    <div className="flex items-center gap-2">
+                      <span>{displayLabel(assetMeta[row.lbl], row.lbl)}</span>
+                      {isSelected && <Badge color="teal">Detail</Badge>}
+                    </div>
                   </td>
                   <td className="px-2 py-1 text-center text-text-muted border-b border-border/30">{row.cls}</td>
                   <td className={`px-2 py-1 text-center font-semibold border-b border-border/30 ${row.dir === 'LONG' ? 'text-up' : 'text-down'}`}>
                     {row.dir}
                   </td>
-                  <td className="px-2 py-1 text-center text-text-muted border-b border-border/30">+{horizon}d</td>
+                  <td className="px-2 py-1 text-center text-text-muted border-b border-border/30">{`D+${displayDay}->D+${displayDay + horizon}`}</td>
                   <td className={`px-2 py-1 text-center font-medium border-b border-border/30 ${row.med >= 0 ? 'text-up' : 'text-down'}`}>
                     {fmtReturn(row.med, row.isRates)}
                   </td>
                   <td className="px-2 py-1 text-center border-b border-border/30">
-                    <span className={row.hitRate >= 0.6 ? 'text-up' : row.hitRate >= 0.5 ? 'text-accent-amber' : 'text-down'}>
+                    <span className={hitRateClass(row.hitRate)}>
                       {(row.hitRate * 100).toFixed(0)}%
                     </span>
                   </td>
@@ -233,19 +146,21 @@ export function TradeIdeasTab() {
                   <td className={`px-2 py-1 text-center border-b border-border/30 ${row.sortino > 0 ? 'text-up' : 'text-down'}`}>
                     {row.sortino.toFixed(2)}
                   </td>
-                  <td className="px-2 py-1 text-center text-text-secondary border-b border-border/30">{row.skew.toFixed(2)}</td>
-                  <td className="px-2 py-1 text-center text-down border-b border-border/30">
+                  <td className={`px-2 py-1 text-center border-b border-border/30 ${moveClass(row.worst, row.dir)}`}>
                     {fmtReturn(row.worst, row.isRates)}
                   </td>
                   <td className="px-2 py-1 text-center border-b border-border/30">
                     {Number.isNaN(row.liveGap)
                       ? '--'
-                      : <span className={row.liveGap >= 0 ? 'text-up' : 'text-down'}>{fmtReturn(row.liveGap, row.isRates)}</span>}
+                      : <span className={gapClass(row.liveGap)}>{fmtReturn(row.liveGap, row.isRates)}</span>}
                   </td>
                   <td className="px-2 py-1 text-center border-b border-border/30">
                     {Number.isNaN(row.livePctile) ? '--' : `${row.livePctile.toFixed(0)}th`}
                   </td>
                   <td className="px-2 py-1 text-center border-b border-border/30 whitespace-nowrap">{row.status}</td>
+                  <td className="px-2 py-1 text-center border-b border-border/30 text-text-dim">
+                    {diagnostics.requestedAssetCount > 0 ? `${((row.n / Math.max(selectedEvents.length, 1)) * 100).toFixed(0)}%` : '--'}
+                  </td>
                   <td className="px-2 py-1 text-center border-b border-border/30">{row.stars}</td>
                   <td className="px-2 py-1 text-center text-text-dim border-b border-border/30">{row.n}/{row.nTotal}</td>
                 </tr>
@@ -254,6 +169,9 @@ export function TradeIdeasTab() {
           </tbody>
         </table>
       </div>
+      <BottomDescription>
+        Trade Ideas ranks forward setups from the current live state, not from Day 0. The window shown above is the current live day to the future live day for the selected horizon. If an asset does not have a print exactly on the live day, the latest available value on or before that live date is used automatically. Clicking a row opens the deeper drill-down in Detail.
+      </BottomDescription>
     </ChartCard>
   );
 }
