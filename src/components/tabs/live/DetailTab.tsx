@@ -184,8 +184,11 @@ export function DetailTab() {
     [groupAssets, assetMeta],
   );
   const horizonOptions = useMemo(
-    () => HORIZON_CHOICES.map((item) => ({ value: item.offset.toString(), label: `${item.label} (${item.offset}d)` })),
-    [],
+    () => HORIZON_CHOICES.map((item) => ({
+      value: item.offset.toString(),
+      label: `${item.label} (D+${displayDay}->D+${displayDay + item.offset})`,
+    })),
+    [displayDay],
   );
 
   const correlationLabels = correlationMatrix?.labels || [];
@@ -195,7 +198,7 @@ export function DetailTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title={`Detail - ${displayLabel(meta, selectedAsset)}`}
-        subtitle={`Live D+${displayDay}${displayDate ? ` (${displayDate})` : ''} | forward +${selectedHorizon}d`}
+        subtitle={`Live D+${displayDay}${displayDate ? ` (${displayDate})` : ''} | D+${displayDay}->D+${displayDay + selectedHorizon}`}
         controls={
           <div className="flex items-center gap-2 flex-wrap">
             <Select label="" value={group} onChange={setGroup} options={groupOptions} />
@@ -299,7 +302,7 @@ export function DetailTab() {
                 )}
               </ChartCard>
 
-              <ChartCard title="Per-Analogue Dot Plot" subtitle={`Forward return from D+${effectiveDay} to D+${effectiveDay + selectedHorizon}`}>
+              <ChartCard title="Per-Analogue Dot Plot" subtitle={`Forward return from live D+${displayDay} to D+${displayDay + selectedHorizon}`}>
                 {dotPlot.length === 0 ? (
                   <div className="py-12 text-center text-text-dim text-xs">Not enough analogue points for the selected horizon.</div>
                 ) : (
@@ -409,7 +412,7 @@ export function DetailTab() {
               </ChartCard>
             </div>
             <BottomDescription>
-              Detail is the drill-down for a single trade idea. Read it top-down: headline edge, horizon-by-horizon stability, analogue-by-analogue spread, then live deviation and correlation crowding.
+              Detail is the drill-down for a single trade idea. All forward windows in this tab are measured from the current live state, not from Day 0. The horizon picker shows the live start day and the resulting end day for each option. If the selected asset does not have a print exactly on the live day, the latest available value on or before that live date is used automatically. Read it top-down: headline edge, horizon-by-horizon stability, analogue-by-analogue spread, then live deviation and correlation crowding.
             </BottomDescription>
           </div>
         )}

@@ -5,7 +5,7 @@ import { useDashboard } from '@/store/dashboard';
 import { BottomDescription, ChartCard, Select, Badge } from '@/components/ui/ChartCard';
 import { DiagnosticsStrip } from '@/components/ui/DiagnosticsStrip';
 import { displayLabel } from '@/engine/returns';
-import { getEffectiveScoringDay, getLiveDiagnosticsSummary } from '@/engine/live';
+import { getEffectiveScoringDay, getLiveDiagnosticsSummary, getLiveDisplayDay, getLiveDisplayDate } from '@/engine/live';
 import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import { computeTradeRows } from '@/engine/trades';
 import { fmtReturn } from '@/lib/format';
@@ -57,6 +57,8 @@ export function TradeIdeasTab() {
     [group, allLabels, assetMeta],
   );
   const dayN = getEffectiveScoringDay(live, labels);
+  const displayDay = getLiveDisplayDay(live);
+  const displayDate = getLiveDisplayDate(live);
   const rows = useMemo(
     () => computeTradeRows(labels, eventReturns, assetMeta, selectedEvents, dayN, horizon, live),
     [labels, eventReturns, assetMeta, selectedEvents, dayN, horizon, live],
@@ -67,7 +69,7 @@ export function TradeIdeasTab() {
   return (
     <ChartCard
       title="Trade Ideas"
-      subtitle={`${rows.length} ideas | forward +${horizon}d from current live state | ${selectedEvents.length} analogues`}
+      subtitle={`${rows.length} ideas | live D+${displayDay}${displayDate ? ` (${displayDate})` : ''} -> D+${displayDay + horizon} | ${selectedEvents.length} analogues`}
       controls={
         <Select label="Group" value={group} onChange={setGroup} options={groupOptions} />
       }
@@ -82,7 +84,7 @@ export function TradeIdeasTab() {
         <table className="w-full border-collapse text-2xs font-mono">
           <thead>
             <tr className="bg-bg-cell">
-              {['#', 'Asset', 'Class', 'Dir', `+${horizon}d`, 'Median', 'Hit%', 'Sharpe', 'Sortino', 'Worst', 'Gap', 'Pctile', 'Status', 'Coverage', 'Conv', 'N'].map((header) => (
+              {['#', 'Asset', 'Class', 'Dir', `D+${displayDay}->D+${displayDay + horizon}`, 'Median', 'Hit%', 'Sharpe', 'Sortino', 'Worst', 'Gap', 'Pctile', 'Status', 'Coverage', 'Conv', 'N'].map((header) => (
                 <th key={header} className="px-2 py-1.5 text-text-muted border-b border-border font-medium text-center whitespace-nowrap">
                   {header}
                 </th>
@@ -129,7 +131,7 @@ export function TradeIdeasTab() {
                   <td className={`px-2 py-1 text-center font-semibold border-b border-border/30 ${row.dir === 'LONG' ? 'text-up' : 'text-down'}`}>
                     {row.dir}
                   </td>
-                  <td className="px-2 py-1 text-center text-text-muted border-b border-border/30">+{horizon}d</td>
+                  <td className="px-2 py-1 text-center text-text-muted border-b border-border/30">{`D+${displayDay}->D+${displayDay + horizon}`}</td>
                   <td className={`px-2 py-1 text-center font-medium border-b border-border/30 ${row.med >= 0 ? 'text-up' : 'text-down'}`}>
                     {fmtReturn(row.med, row.isRates)}
                   </td>
@@ -168,7 +170,7 @@ export function TradeIdeasTab() {
         </table>
       </div>
       <BottomDescription>
-        Trade Ideas ranks forward setups from the current live state. Gap and percentile compare today&apos;s live move to the analogue distribution at the same point, and clicking a row opens the deeper drill-down in Detail.
+        Trade Ideas ranks forward setups from the current live state, not from Day 0. The window shown above is the current live day to the future live day for the selected horizon. If an asset does not have a print exactly on the live day, the latest available value on or before that live date is used automatically. Clicking a row opens the deeper drill-down in Detail.
       </BottomDescription>
     </ChartCard>
   );
