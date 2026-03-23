@@ -1,4 +1,4 @@
-import { DEFAULT_THEME, isThemeName, ThemeName } from '@/theme/registry';
+import { ThemeName } from '@/theme/registry';
 
 const colorVar = (token: string) => `rgb(var(${token}))`;
 const alphaColorVar = (token: string, alpha: number | string) => `rgb(var(${token}) / ${alpha})`;
@@ -47,6 +47,23 @@ export const CHART_SERIES_PALETTE = Array.from(
   (_, index) => colorVar(`--color-series-${index}`),
 );
 
+// Keep this ordering aligned with the built-in event order in src/config/events.ts.
+const CANONICAL_EVENT_ORDER = [
+  '1973 Oil Embargo',
+  '1990 Gulf War',
+  '1991 Kuwait Oil Fires',
+  '1998 Desert Fox',
+  '2001 Afghanistan (OEF)',
+  '2003 SARS',
+  '2003 Iraq War',
+  '2011 Libya',
+  '2014 ISIS/Mosul',
+  '2017 Syria Strikes',
+  'COVID-19',
+  '2022 Russia-Ukraine',
+  '2023 Red Sea Crisis',
+] as const;
+
 function stableSeriesIndex(key: string, length: number): number {
   let hash = 0;
   for (let index = 0; index < key.length; index += 1) {
@@ -55,63 +72,13 @@ function stableSeriesIndex(key: string, length: number): number {
   return Math.abs(hash) % Math.max(length, 1);
 }
 
-const DARK_EVENT_COLORS: Record<string, string> = {
-  '2022 Russia-Ukraine': '#f78166',
-  'COVID-19': '#d2a8ff',
-  '2014 ISIS/Mosul': '#ffa657',
-  '2017 Syria Strikes': '#3fb950',
-  '2023 Red Sea Crisis': '#79c0ff',
-  '2011 Libya': '#56d364',
-  '1973 Oil Embargo': '#58a6ff',
-  '1990 Gulf War': '#e3b341',
-  '2003 Iraq War': '#89ddff',
-};
-
-const VERIFIED_LIGHT_EVENT_COLORS: Record<string, string> = {
-  '2022 Russia-Ukraine': '#7B4B2A',
-  '1991 Kuwait Oil Fires': '#0044BB',
-  '2003 Iraq War': '#007030',
-  '1990 Gulf War': '#BB5500',
-  '1973 Oil Embargo': '#002288',
-  'COVID-19': '#2457A6',
-  '2017 Syria Strikes': '#006666',
-  '2003 SARS': '#880000',
-  '1998 Desert Fox': '#556600',
-  '2023 Red Sea Crisis': '#AA0066',
-  '2001 Afghanistan (OEF)': '#224400',
-  '2014 ISIS/Mosul': '#004499',
-  '2011 Libya': '#886600',
-};
-
-const VERIFIED_LIGHT_EVENT_STYLES: Record<string, { color: string; strokeWidth: number; strokeDasharray?: string }> = {
-  '2022 Russia-Ukraine': { color: '#7B4B2A', strokeWidth: 2.5 },
-  '1991 Kuwait Oil Fires': { color: '#0044BB', strokeWidth: 2.5 },
-  '2003 Iraq War': { color: '#007030', strokeWidth: 2.5 },
-  '1990 Gulf War': { color: '#BB5500', strokeWidth: 2, strokeDasharray: '12 5' },
-  '1973 Oil Embargo': { color: '#002288', strokeWidth: 2, strokeDasharray: '12 5' },
-  'COVID-19': { color: '#2457A6', strokeWidth: 2, strokeDasharray: '12 5' },
-  '2017 Syria Strikes': { color: '#006666', strokeWidth: 2, strokeDasharray: '5 4' },
-  '2003 SARS': { color: '#880000', strokeWidth: 2, strokeDasharray: '5 4' },
-  '1998 Desert Fox': { color: '#556600', strokeWidth: 2, strokeDasharray: '5 4' },
-  '2023 Red Sea Crisis': { color: '#AA0066', strokeWidth: 1.5, strokeDasharray: '2 5' },
-  '2001 Afghanistan (OEF)': { color: '#224400', strokeWidth: 1.5, strokeDasharray: '2 5' },
-  '2014 ISIS/Mosul': { color: '#004499', strokeWidth: 2, strokeDasharray: '2 4 8 4' },
-  '2011 Libya': { color: '#886600', strokeWidth: 2, strokeDasharray: '2 4 8 4' },
-};
-
-const EVENT_COLOR_MAP: Record<ThemeName, Record<string, string>> = {
-  dark: DARK_EVENT_COLORS,
-  'parchment-terminal': VERIFIED_LIGHT_EVENT_COLORS,
-  'terminal-light': VERIFIED_LIGHT_EVENT_COLORS,
-};
-
-function getActiveThemeName(): ThemeName {
-  if (typeof document === 'undefined') return DEFAULT_THEME;
-  const theme = document.documentElement.dataset.theme;
-  return isThemeName(theme) ? theme : DEFAULT_THEME;
+function getCanonicalEventIndex(eventName: string): number {
+  const canonicalIndex = CANONICAL_EVENT_ORDER.indexOf(eventName as (typeof CANONICAL_EVENT_ORDER)[number]);
+  if (canonicalIndex >= 0) return canonicalIndex;
+  return stableSeriesIndex(eventName, CHART_SERIES_PALETTE.length);
 }
 
-export function isLightTheme(theme: ThemeName = getActiveThemeName()): boolean {
+export function isLightTheme(theme: ThemeName): boolean {
   return theme !== 'dark';
 }
 
@@ -119,31 +86,20 @@ export function alphaSeriesColor(index: number, alpha: number | string): string 
   return `rgb(var(--color-series-${index}) / ${alpha})`;
 }
 
-export function getEventSeriesColor(eventName: string, index = 0, theme: ThemeName = getActiveThemeName()): string {
-  const mapped = EVENT_COLOR_MAP[theme][eventName];
-  if (mapped) return mapped;
-  const stableIndex = stableSeriesIndex(eventName || String(index), CHART_SERIES_PALETTE.length);
+export function getEventSeriesColor(eventName: string, index = 0, _theme?: ThemeName): string {
+  const stableIndex = eventName ? getCanonicalEventIndex(eventName) : stableSeriesIndex(String(index), CHART_SERIES_PALETTE.length);
   return CHART_SERIES_PALETTE[stableIndex];
 }
 
-export function themeStrokeWidth(baseWidth: number, theme: ThemeName = getActiveThemeName()): number {
-  return isLightTheme(theme) ? Math.max(baseWidth, 1.5) : baseWidth;
+export function themeStrokeWidth(baseWidth: number, _theme?: ThemeName): number {
+  return baseWidth;
 }
 
-export function themeDashPattern(darkPattern: string | undefined, lightPattern = '5 4', theme: ThemeName = getActiveThemeName()): string | undefined {
-  if (!darkPattern) return undefined;
-  return isLightTheme(theme) ? lightPattern : darkPattern;
+export function themeDashPattern(darkPattern: string | undefined, _lightPattern = '5 4', _theme?: ThemeName): string | undefined {
+  return darkPattern;
 }
 
-export function dayZeroMarkerStyle(theme: ThemeName = getActiveThemeName()) {
-  if (isLightTheme(theme)) {
-    return {
-      stroke: THEME_COLORS.textPrimary,
-      strokeDasharray: undefined,
-      strokeWidth: 2,
-    };
-  }
-
+export function dayZeroMarkerStyle(_theme?: ThemeName) {
   return {
     stroke: THEME_COLORS.accentBlue,
     strokeDasharray: '4 4',
@@ -151,25 +107,12 @@ export function dayZeroMarkerStyle(theme: ThemeName = getActiveThemeName()) {
   };
 }
 
-export function getEventLineStyle(eventName: string, index = 0, darkStrokeWidth = 1.6, darkDashPattern?: string, theme: ThemeName = getActiveThemeName()) {
-  if (!isLightTheme(theme)) {
-    return {
-      color: getEventSeriesColor(eventName, index, theme),
-      strokeWidth: darkStrokeWidth,
-      strokeDasharray: darkDashPattern,
-    };
-  }
-
-  const style = VERIFIED_LIGHT_EVENT_STYLES[eventName];
-  if (!style) {
-    return {
-      color: getEventSeriesColor(eventName, index, theme),
-      strokeWidth: Math.max(darkStrokeWidth, 1.8),
-      strokeDasharray: undefined,
-    };
-  }
-
-  return style;
+export function getEventLineStyle(eventName: string, index = 0, darkStrokeWidth = 1.6, darkDashPattern?: string, theme?: ThemeName) {
+  return {
+    color: getEventSeriesColor(eventName, index, theme),
+    strokeWidth: darkStrokeWidth,
+    strokeDasharray: darkDashPattern,
+  };
 }
 
 export function segmentedControlStyle(selected: boolean) {

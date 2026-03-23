@@ -1,4 +1,5 @@
 'use client';
+
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { BottomDescription, ChartCard, Select, Badge } from '@/components/ui/ChartCard';
@@ -10,10 +11,20 @@ import { fmtReturn } from '@/lib/format';
 import { alphaThemeColor } from '@/theme/chart';
 import { CHART_THEME } from '@/config/theme';
 
+type BoxStats = {
+  min: number;
+  q1: number;
+  med: number;
+  q3: number;
+  max: number;
+};
+
 export function BoxTab() {
   const { eventReturns, assetMeta, allLabels, events, activeEvents } = useDashboard();
   const [group, setGroup] = useState('Risk Barometer');
-  const [selectedPois, setSelectedPois] = useState<Set<number>>(new Set(POIS.filter((poi) => poi.offset >= 0).map((poi) => poi.offset)));
+  const [selectedPois, setSelectedPois] = useState<Set<number>>(
+    new Set(POIS.filter((poi) => poi.offset >= 0).map((poi) => poi.offset)),
+  );
 
   const activeEventNames = useMemo(
     () => events.filter((event) => activeEvents.has(event.name)).map((event) => event.name),
@@ -21,13 +32,19 @@ export function BoxTab() {
   );
 
   const labels = useMemo(() => {
-    if (group === '— All —') return allLabels.slice(0, 20);
+    if (group === '-- All --') return allLabels.slice(0, 20);
     return (CUSTOM_GROUPS[group] || []).filter((label: string) => allLabels.includes(label));
   }, [group, allLabels]);
 
-  const boxData = useMemo(() => {
-    const activePois = POIS.filter((poi) => selectedPois.has(poi.offset));
-    return labels.map((label) => {
+  const activePois = useMemo(
+    () => POIS.filter((poi) => selectedPois.has(poi.offset)),
+    [selectedPois],
+  );
+
+  const { boxData, horizonDomains } = useMemo(() => {
+    const domains: Record<number, number> = {};
+
+    const rows = labels.map((label) => {
       const isRates = assetMeta[label]?.is_rates_bp || false;
       const poiStats = activePois.map((poi) => {
         const values: number[] = [];
@@ -35,42 +52,54 @@ export function BoxTab() {
           const value = poiRet(eventReturns, label, eventName, poi.offset);
           if (!Number.isNaN(value)) values.push(value);
         }
-        if (values.length < 2) return { offset: poi.offset, label: poi.label, stats: null };
-        return {
-          offset: poi.offset,
-          label: poi.label,
-          stats: {
-            min: nanMin(values),
-            q1: nanPercentile(values, 25),
-            med: nanMedian(values),
-            q3: nanPercentile(values, 75),
-            max: nanMax(values),
-          },
+
+        if (values.length < 2) {
+          return { offset: poi.offset, label: poi.label, stats: null as BoxStats | null };
+        }
+
+        const stats: BoxStats = {
+          min: nanMin(values),
+          q1: nanPercentile(values, 25),
+          med: nanMedian(values),
+          q3: nanPercentile(values, 75),
+          max: nanMax(values),
         };
+
+        const maxAbs = Math.max(
+          Math.abs(stats.min),
+          Math.abs(stats.q1),
+          Math.abs(stats.med),
+          Math.abs(stats.q3),
+          Math.abs(stats.max),
+        );
+        domains[poi.offset] = Math.max(domains[poi.offset] ?? 0, maxAbs || 1);
+
+        return { offset: poi.offset, label: poi.label, stats };
       });
+
       return { asset: label, isRates, poiStats };
     }).sort((left, right) => {
       const leftMedian = left.poiStats[0]?.stats?.med ?? 0;
       const rightMedian = right.poiStats[0]?.stats?.med ?? 0;
       return Math.abs(rightMedian) - Math.abs(leftMedian);
     });
-  }, [activeEventNames, assetMeta, eventReturns, labels, selectedPois]);
+
+    return { boxData: rows, horizonDomains: domains };
+  }, [activeEventNames, activePois, assetMeta, eventReturns, labels]);
 
   const groupOptions = useMemo(
     () => [
-      { value: '— All —', label: '— All —' },
+      { value: '-- All --', label: '-- All --' },
       ...Object.keys(CUSTOM_GROUPS).sort().map((groupName) => ({ value: groupName, label: groupName })),
     ],
     [],
   );
 
-  const activePois = POIS.filter((poi) => selectedPois.has(poi.offset));
-
   return (
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title="Box & Whisker Distribution"
-        subtitle={`${labels.length} assets · ${activePois.length} horizons · ${activeEventNames.length} events`}
+        subtitle={`${labels.length} assets | ${activePois.length} horizons | ${activeEventNames.length} events`}
         controls={
           <div className="flex items-center gap-3 flex-wrap">
             <Select value={group} onChange={setGroup} options={groupOptions} />
@@ -80,7 +109,8 @@ export function BoxTab() {
                   key={poi.label}
                   onClick={() => {
                     const next = new Set(selectedPois);
-                    next.has(poi.offset) ? next.delete(poi.offset) : next.add(poi.offset);
+                    if (next.has(poi.offset)) next.delete(poi.offset);
+                    else next.add(poi.offset);
                     setSelectedPois(next);
                   }}
                   className="transition-all"
@@ -110,7 +140,11 @@ export function BoxTab() {
             </thead>
             <tbody>
               {boxData.map((row, index) => (
-                <tr key={row.asset} className="hover:bg-bg-cell/30 transition-colors table-row-hover" style={{ backgroundColor: index % 2 === 0 ? 'transparent' : alphaThemeColor('bgCell', '0.28') }}>
+                <tr
+                  key={row.asset}
+                  className="hover:bg-bg-cell/30 transition-colors table-row-hover"
+                  style={{ backgroundColor: index % 2 === 0 ? 'transparent' : alphaThemeColor('bgCell', '0.28') }}
+                >
                   <td className="px-3 py-2.5 border-b border-border/30 text-text-secondary whitespace-nowrap sticky left-0 bg-inherit font-medium">
                     {displayLabel(assetMeta[row.asset], row.asset)}
                   </td>
@@ -118,16 +152,19 @@ export function BoxTab() {
                     if (!poiStat.stats) {
                       return (
                         <td key={poiStat.label} className="px-2 py-2.5 border-b border-border/30 text-center text-text-dim">
-                          —
+                          --
                         </td>
                       );
                     }
+
                     const stats = poiStat.stats;
-                    const range = stats.max - stats.min || 1;
-                    const scale = (value: number) => ((value - stats.min) / range) * 100;
+                    const maxAbs = horizonDomains[poiStat.offset] || 1;
+                    const scale = (value: number) => Math.max(0, Math.min(100, 50 + (value / maxAbs) * 50));
+
                     return (
                       <td key={poiStat.label} className="px-2 py-2.5 border-b border-border/30">
                         <div className="relative h-6 flex flex-col justify-center">
+                          <div className="absolute top-0 bottom-0 w-[1px] bg-border/50" style={{ left: '50%' }} />
                           <div
                             className="absolute top-1/2 -translate-y-1/2 h-[1px] bg-border/60"
                             style={{ left: `${scale(stats.min)}%`, width: `${Math.max(scale(stats.max) - scale(stats.min), 1)}%` }}
@@ -145,16 +182,17 @@ export function BoxTab() {
                             style={{
                               left: `${scale(stats.med)}%`,
                               backgroundColor: stats.med >= 0 ? CHART_THEME.up : CHART_THEME.down,
-                              boxShadow: stats.med >= 0 ? `0 0 3px ${alphaThemeColor('up', '0.25')}` : `0 0 3px ${alphaThemeColor('down', '0.25')}`,
+                              boxShadow: stats.med >= 0
+                                ? `0 0 3px ${alphaThemeColor('up', '0.25')}`
+                                : `0 0 3px ${alphaThemeColor('down', '0.25')}`,
                             }}
                           />
-                          {stats.min < 0 && stats.max > 0 && (
-                            <div className="absolute top-0 bottom-0 w-[1px] bg-border/40" style={{ left: `${scale(0)}%` }} />
-                          )}
                         </div>
                         <div className="flex justify-between text-[7px] text-text-dim mt-1.5 px-0.5">
                           <span>{fmtReturn(stats.min, row.isRates, 0)}</span>
-                          <span className={`font-semibold ${stats.med >= 0 ? 'text-up' : 'text-down'}`}>{fmtReturn(stats.med, row.isRates, 0)}</span>
+                          <span className={`font-semibold ${stats.med >= 0 ? 'text-up' : 'text-down'}`}>
+                            {fmtReturn(stats.med, row.isRates, 0)}
+                          </span>
                           <span>{fmtReturn(stats.max, row.isRates, 0)}</span>
                         </div>
                       </td>
@@ -166,7 +204,7 @@ export function BoxTab() {
           </table>
         </div>
         <BottomDescription>
-          Each row uses a shared numeric axis within each horizon cell, so you can compare both sign and magnitude. The box shows the interquartile range, the center line is the median, and the whiskers show the full observed range.
+          Each column now shares a zero-centered axis across all assets for that horizon, so you can compare sign, skew, and tail size directly. The box shows the interquartile range, the center line is the median, and the whiskers show the full observed range.
         </BottomDescription>
       </ChartCard>
     </div>

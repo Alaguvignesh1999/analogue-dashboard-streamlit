@@ -42,38 +42,29 @@ def assert_no_raw_colors_outside_theme_layer() -> None:
             raise AssertionError(f"Raw color `{match.group(0)}` found in {rel_path}")
 
 
-def rgb_triplet_to_hex(value: str) -> str:
-    parts = [int(piece) for piece in value.split()]
-    if len(parts) != 3:
-        raise AssertionError(f"Unexpected rgb triplet `{value}`")
-    return "#{:02X}{:02X}{:02X}".format(*parts)
+def parse_rgb_triplets(block_name: str, registry_text: str) -> list[str]:
+    block = re.search(rf"const {block_name}: Record<string, string> = \{{(?P<body>.*?)\n\}};", registry_text, re.S)
+    if not block:
+        raise AssertionError(f"Missing {block_name} in src/theme/registry.ts")
+    return re.findall(r"'--color-series-(?:\d+)':\s*'([0-9 ]+)'", block.group("body"))
 
 
-def assert_verified_light_palette_is_unique(registry_text: str, chart_text: str) -> None:
-    event_block = re.search(
-        r"const VERIFIED_LIGHT_EVENT_COLORS: Record<string, string> = \{(?P<body>.*?)\n\};",
-        chart_text,
-        re.S,
-    )
-    if not event_block:
-        raise AssertionError("Missing VERIFIED_LIGHT_EVENT_COLORS in src/theme/chart.ts")
+def assert_light_series_palettes_match_dark(registry_text: str) -> None:
+    dark_series = parse_rgb_triplets("darkTokens", registry_text)
+    parchment_series = parse_rgb_triplets("parchmentTokens", registry_text)
+    terminal_series = parse_rgb_triplets("terminalLightTokens", registry_text)
+    if len(dark_series) != 13 or len(parchment_series) != 13 or len(terminal_series) != 13:
+        raise AssertionError("Expected exactly 13 chart-series tokens per theme")
+    if dark_series != parchment_series or dark_series != terminal_series:
+        raise AssertionError("Light themes must preserve the canonical series palette ordering")
 
-    pairs = re.findall(r"'([^']+)':\s*'(#(?:[0-9A-Fa-f]{6}))'", event_block.group("body"))
-    if len(pairs) < 10:
-        raise AssertionError("Verified light event palette is unexpectedly small")
 
-    values = [color.upper() for _, color in pairs]
-    if len(values) != len(set(values)):
-        raise AssertionError("Verified light event palette contains duplicate event colors")
-
-    light_live_tokens = re.findall(r"'--color-live':\s*'([0-9 ]+)'", registry_text)
-    if len(light_live_tokens) < 2:
-        raise AssertionError("Missing light-theme live token values in src/theme/registry.ts")
-
-    for token in light_live_tokens:
-        live_hex = rgb_triplet_to_hex(token)
-        if live_hex in set(values):
-            raise AssertionError(f"Live color {live_hex} overlaps an event color in verified light palette")
+def assert_chart_palette_is_canonical(theme_chart: str) -> None:
+    assert_contains(theme_chart, "CANONICAL_EVENT_ORDER", "src/theme/chart.ts")
+    assert_contains(theme_chart, "getCanonicalEventIndex", "src/theme/chart.ts")
+    assert_not_contains(theme_chart, "EVENT_COLOR_MAP", "src/theme/chart.ts")
+    assert_not_contains(theme_chart, "VERIFIED_LIGHT_EVENT_COLORS", "src/theme/chart.ts")
+    assert_not_contains(theme_chart, "VERIFIED_LIGHT_EVENT_STYLES", "src/theme/chart.ts")
 
 
 def main() -> int:
@@ -119,10 +110,11 @@ def main() -> int:
         assert_contains(globals_css, needle, "src/app/globals.css")
 
     theme_chart = read("src/theme/chart.ts")
-    for needle in ["alphaThemeColor", "alphaSeriesColor", "themedHeatColor", "VERIFIED_LIGHT_EVENT_COLORS", "getEventLineStyle"]:
+    for needle in ["alphaThemeColor", "alphaSeriesColor", "themedHeatColor", "getEventLineStyle", "CHART_SERIES_PALETTE"]:
         assert_contains(theme_chart, needle, "src/theme/chart.ts")
 
-    assert_verified_light_palette_is_unique(registry, theme_chart)
+    assert_light_series_palettes_match_dark(registry)
+    assert_chart_palette_is_canonical(theme_chart)
 
     assert_no_raw_colors_outside_theme_layer()
 
