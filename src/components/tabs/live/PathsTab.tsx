@@ -198,7 +198,7 @@ export function PathsTab() {
       </ChartCard>
 
       {fwdHeatmap && selectedEvents.length > 0 && (
-        <ChartCard title="Forward Returns" subtitle={`Median forward from live D+${displayDayN} to each POI`}>
+        <ChartCard title="Forward Returns" subtitle={`Median forward from live D+${displayDayN} to future POIs`}>
           <div className="p-4 flex gap-1.5 flex-wrap">
             {fwdHeatmap.rows.map((row) => (
               <div

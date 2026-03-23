@@ -515,7 +515,7 @@ export function LiveConfigTab() {
               <div className="text-[10px] text-[#6a6a7a]">
                 {analysisOverrideEnabled
                   ? `Override active: analysis behaves as if we are only at D+${analysisDay}${analysisDate ? ` (${analysisDate})` : ''}.`
-                  : `Latest live basis remains D+${maxAnalysisDay}${analysisDate ? ` (${analysisDate})` : ''}.`}
+                  : `Latest live state remains D+${maxAnalysisDay}${analysisDate ? ` (${analysisDate})` : ''}.`}
               </div>
             </div>
           </div>

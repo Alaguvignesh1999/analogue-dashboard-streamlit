@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { BottomDescription, ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
 import { runAnalogueMatch } from '@/engine/similarity';
-import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveScoringReturns } from '@/engine/live';
+import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveDisplayDate, getLiveDisplayDay, getLiveScoringReturns } from '@/engine/live';
 import { nanMean } from '@/lib/math';
 
 interface ReverseMatch {
@@ -18,6 +18,8 @@ export function ReverseTab() {
   const scoringReturns = getLiveScoringReturns(live);
   const scoringDayN = scoringReturns ? getEffectiveScoringDay(live, similarityAssets) : 0;
   const scoringDate = scoringReturns ? getEffectiveScoringDate(live, similarityAssets) : null;
+  const displayDay = getLiveDisplayDay(live);
+  const displayDate = getLiveDisplayDate(live);
   const activeEventDefs = useMemo(
     () => events.filter((event) => activeEvents.has(event.name)),
     [activeEvents, events],
@@ -163,7 +165,7 @@ export function ReverseTab() {
 
         <BottomDescription className="space-y-1">
           <p>Reverse lookup reuses the same quant-only path engine as analogue matching. Each score is based on the current live return pattern using only assets with valid overlap for that specific event.</p>
-          <p>Current live basis: D+{scoringDayN}{scoringDate ? ` (${scoringDate})` : ''}.</p>
+          <p>Current live state shown in the dashboard: D+{displayDay}{displayDate ? ` (${displayDate})` : scoringDate ? ` (${scoringDate})` : ''}.</p>
           <p className="text-text-dim/70">Asset count in parentheses indicates how many assets had valid overlap for that event.</p>
         </BottomDescription>
       </div>
