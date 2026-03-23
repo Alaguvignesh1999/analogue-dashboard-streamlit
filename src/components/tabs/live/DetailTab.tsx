@@ -419,7 +419,7 @@ export function DetailTab() {
                       </table>
                     </div>
                     <div className="text-2xs text-text-dim">
-                      Cells show the pairwise correlation when there are enough shared analogue events. If overlap is too thin for a stable estimate, the table shows the shared event count instead of a misleading blank.
+                      Cells show the pairwise correlation only when at least three analogue events overlap for both ideas. If overlap is thinner than that, the table shows the shared event count instead of a misleading perfect correlation.
                     </div>
                   </div>
                 )}
