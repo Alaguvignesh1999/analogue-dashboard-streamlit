@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
+import { ChartCard, Select, SliderControl, StatBox, Badge } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel } from '@/engine/returns';
 import { POIS } from '@/config/engine';
-import { CUSTOM_GROUPS } from '@/config/assets';
+import { ALL_ASSETS_OPTION, getGroupLabels, groupOptionsFromData } from '@/config/assets';
 import { nanMean, nanMedian, nanStd } from '@/lib/math';
 import { fmtReturn } from '@/lib/format';
+import { getEffectiveScoringDate, getEffectiveScoringDay } from '@/engine/live';
+import { filterScoresByActiveEvents, selectEvents } from '@/engine/similarity';
 import {
   BarChart,
   Bar,
@@ -31,34 +33,43 @@ interface RotationMetrics {
   direction: 'positive' | 'negative';
 }
 
-const ROTATION_GROUPS = ['Sector ETFs', 'Thematic ETFs', 'Bond ETFs', 'Country ETFs', 'Oil & Energy', 'Risk Barometer'];
+type RotationMode = 'preset' | 'from-live';
 
 export function RotationTab() {
-  const { eventReturns, assetMeta, activeEvents } = useDashboard();
+  const { eventReturns, assetMeta, activeEvents, allLabels, allClasses, live, similarityAssets, scores, scoreCutoff } = useDashboard();
 
-  const [poiIndex, setPoiIndex] = useState(2);
   const [rotationGroup, setRotationGroup] = useState('Sector ETFs');
+  const [mode, setMode] = useState<RotationMode>('preset');
+  const [poiIndex, setPoiIndex] = useState(2);
+  const [customForwardDays, setCustomForwardDays] = useState(21);
 
+  const activeScores = useMemo(() => filterScoresByActiveEvents(scores, activeEvents), [activeEvents, scores]);
+  const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
   const rotationAssets = useMemo(
-    () => (CUSTOM_GROUPS[rotationGroup] || []).filter((asset) => assetMeta[asset]),
-    [assetMeta, rotationGroup],
+    () => getGroupLabels(rotationGroup, allLabels, assetMeta).filter((asset) => assetMeta[asset]),
+    [rotationGroup, allLabels, assetMeta],
   );
+
+  const effectiveDay = getEffectiveScoringDay(live, similarityAssets);
+  const effectiveDate = getEffectiveScoringDate(live, similarityAssets);
+  const positivePois = useMemo(() => POIS.filter((poi) => poi.offset >= 0), []);
+  const activePoi = positivePois[poiIndex] || positivePois.find((poi) => poi.offset === 21) || positivePois[0];
+  const startOffset = mode === 'from-live' ? effectiveDay : 0;
+  const endOffset = mode === 'from-live' ? effectiveDay + customForwardDays : activePoi?.offset ?? 21;
+  const horizonLabel = mode === 'from-live' ? `D+${effectiveDay} -> D+${endOffset}` : `D0 -> ${activePoi?.label || 'selected horizon'}`;
 
   const rotationMetrics = useMemo(() => {
     const results: RotationMetrics[] = [];
-    if (!eventReturns || !assetMeta || !activeEvents || activeEvents.size === 0) return results;
-
-    const poi = POIS[poiIndex];
-    if (!poi) return results;
+    if (!eventReturns || !assetMeta || !selectedEvents.length) return results;
 
     for (const asset of rotationAssets) {
       const forwardReturns: number[] = [];
 
-      for (const eventName of activeEvents) {
-        const atPoi = poiRet(eventReturns, asset, eventName, poi.offset);
-        const atZero = poiRet(eventReturns, asset, eventName, 0);
-        if (Number.isNaN(atPoi) || Number.isNaN(atZero)) continue;
-        forwardReturns.push(atPoi - atZero);
+      for (const eventName of selectedEvents) {
+        const atStart = poiRet(eventReturns, asset, eventName, startOffset);
+        const atEnd = poiRet(eventReturns, asset, eventName, endOffset);
+        if (Number.isNaN(atStart) || Number.isNaN(atEnd)) continue;
+        forwardReturns.push(atEnd - atStart);
       }
 
       if (forwardReturns.length < 2) continue;
@@ -66,7 +77,8 @@ export function RotationTab() {
       const median = nanMedian(forwardReturns);
       const mean = nanMean(forwardReturns);
       const std = nanStd(forwardReturns);
-      const hitRate = (forwardReturns.filter((value) => value > 0).length / forwardReturns.length) * 100;
+      const direction = median >= 0 ? 'positive' : 'negative';
+      const hitRate = (forwardReturns.filter((value) => value * (median >= 0 ? 1 : -1) > 0).length / forwardReturns.length) * 100;
 
       results.push({
         assetId: asset,
@@ -76,12 +88,12 @@ export function RotationTab() {
         stdReturn: std,
         hitRate,
         sampleSize: forwardReturns.length,
-        direction: median >= 0 ? 'positive' : 'negative',
+        direction,
       });
     }
 
-    return results.sort((left, right) => right.medianReturn - left.medianReturn);
-  }, [activeEvents, assetMeta, eventReturns, poiIndex, rotationAssets]);
+    return results.sort((left, right) => Math.abs(right.medianReturn) - Math.abs(left.medianReturn));
+  }, [assetMeta, endOffset, eventReturns, rotationAssets, selectedEvents, startOffset]);
 
   const chartData = useMemo(
     () => rotationMetrics.map((metric) => ({
@@ -92,8 +104,6 @@ export function RotationTab() {
     [rotationMetrics],
   );
 
-  const positivePois = useMemo(() => POIS.filter((poi) => poi.offset >= 0), []);
-
   const poiOptions = useMemo(
     () => positivePois.map((poi, index) => ({
       label: `${poi.label} (${poi.offset}D)`,
@@ -102,11 +112,8 @@ export function RotationTab() {
     [positivePois],
   );
 
-  const activePoi = positivePois[poiIndex] || positivePois.find((poi) => poi.offset === 21) || positivePois[0];
-  const horizonDays = Math.abs(activePoi?.offset || 0);
-
   const stats = useMemo(() => {
-    if (rotationMetrics.length === 0) return { best: '—', worst: '—', avg: '—', positive: 0 };
+    if (rotationMetrics.length === 0) return { best: '--', worst: '--', avg: '--', positive: 0 };
     const returns = rotationMetrics.map((metric) => metric.medianReturn);
     const positive = rotationMetrics.filter((metric) => metric.medianReturn > 0).length;
     const isRates = assetMeta?.[rotationMetrics[0].assetId]?.is_rates_bp ?? false;
@@ -118,10 +125,7 @@ export function RotationTab() {
     };
   }, [assetMeta, rotationMetrics]);
 
-  const groupOptions = useMemo(
-    () => ROTATION_GROUPS.filter((groupName) => CUSTOM_GROUPS[groupName]).map((groupName) => ({ label: groupName, value: groupName })),
-    [],
-  );
+  const groupOptions = useMemo(() => groupOptionsFromData(allClasses), [allClasses]);
 
   const formatMetric = (value: number, assetId: string) => {
     const isRates = assetMeta?.[assetId]?.is_rates_bp ?? false;
@@ -131,17 +135,37 @@ export function RotationTab() {
   return (
     <ChartCard
       title="Rotation Analysis"
-      subtitle={`${rotationGroup} performance from D0 to ${activePoi?.label || 'selected horizon'} across ${(activeEvents?.size || 0)} active events`}
+      subtitle={`${rotationGroup} | ${horizonLabel} | ${selectedEvents.length} analogue events`}
     >
       <div className="p-4 space-y-4 animate-fade-in">
         <div className="text-2xs text-text-dim border border-border/40 bg-bg-cell/30 px-3 py-2">
-          Rotation ranks which assets in the selected basket historically led or lagged after events similar to the current active set. Use it to spot relative winners, laggards, and whether the basket tends to broaden out or concentrate into a few names.
+          Rotation ranks which assets in the selected basket historically led or lagged after similar events. Use preset horizons for notebook-style post-event views, or switch to live mode to ask what tends to rotate from the current effective scoring day over the next X trading days.
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Select label="Basket" value={rotationGroup} onChange={setRotationGroup} options={groupOptions} />
-          <Select label="Horizon" value={poiIndex.toString()} onChange={(value) => setPoiIndex(parseInt(value, 10))} options={poiOptions} />
+          <Select
+            label="Mode"
+            value={mode}
+            onChange={(value) => setMode(value as RotationMode)}
+            options={[
+              { value: 'preset', label: 'Preset POIs From D0' },
+              { value: 'from-live', label: 'Custom X Days From Live' },
+            ]}
+          />
+          {mode === 'preset' ? (
+            <Select label="Horizon" value={poiIndex.toString()} onChange={(value) => setPoiIndex(parseInt(value, 10))} options={poiOptions} />
+          ) : (
+            <SliderControl label="Forward" value={customForwardDays} onChange={setCustomForwardDays} min={1} max={63} step={1} suffix="d" />
+          )}
         </div>
+
+        {mode === 'from-live' && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge color="teal">Effective D+{effectiveDay}</Badge>
+            <Badge color="dim">{effectiveDate || '--'}</Badge>
+          </div>
+        )}
 
         {rotationMetrics.length === 0 ? (
           <div className="flex items-center justify-center h-24 text-xs text-text-dim">
@@ -196,40 +220,33 @@ export function RotationTab() {
                     <th className="px-3 py-2 text-right text-text-muted">Mean</th>
                     <th className="px-3 py-2 text-right text-text-muted">Std Dev</th>
                     <th className="px-3 py-2 text-right text-text-muted">Hit Rate</th>
-                    <th className="px-3 py-2 text-center text-text-muted">Direction</th>
+                    <th className="px-3 py-2 text-center text-text-muted">Bias</th>
                     <th className="px-3 py-2 text-center text-text-muted">N</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rotationMetrics.map((metric) => {
-                    const returnColor = metric.medianReturn > 0.5 ? 'text-[#22c55e]' : metric.medianReturn < -0.5 ? 'text-[#ef4444]' : 'text-text-muted';
-                    const hitRateColor = metric.hitRate >= 65 ? 'text-[#22c55e]' : metric.hitRate >= 50 ? 'text-[#f59e0b]' : 'text-[#ef4444]';
-                    const borderColor = metric.direction === 'positive' ? 'border-l-[#22c55e]' : 'border-l-[#ef4444]';
-                    return (
-                      <tr key={metric.assetId} className={`border-b border-border/20 hover:bg-bg-hover/20 transition-colors bg-bg-cell/20 border-l-2 ${borderColor}`}>
-                        <td className="px-3 py-2 text-text-secondary">{metric.label}</td>
-                        <td className={`px-3 py-2 text-right font-mono ${returnColor}`}>{formatMetric(metric.medianReturn, metric.assetId)}</td>
-                        <td className={`px-3 py-2 text-right font-mono ${returnColor}`}>{formatMetric(metric.meanReturn, metric.assetId)}</td>
-                        <td className="px-3 py-2 text-right font-mono text-text-muted">{formatMetric(metric.stdReturn, metric.assetId)}</td>
-                        <td className={`px-3 py-2 text-right font-mono ${hitRateColor}`}>{metric.hitRate.toFixed(0)}%</td>
-                        <td className="px-3 py-2 text-center">
-                          <span className={`inline-block px-1.5 py-0.5 rounded text-2xs font-semibold ${
-                            metric.direction === 'positive' ? 'bg-[#22c55e]/20 text-[#22c55e]' : 'bg-[#ef4444]/20 text-[#ef4444]'
-                          }`}>
-                            {metric.direction === 'positive' ? 'LONG BIAS' : 'SHORT BIAS'}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-center text-text-muted">{metric.sampleSize}</td>
-                      </tr>
-                    );
-                  })}
+                  {rotationMetrics.map((metric) => (
+                    <tr key={metric.assetId} className={`border-b border-border/20 hover:bg-bg-hover/20 transition-colors bg-bg-cell/20 border-l-2 ${metric.direction === 'positive' ? 'border-l-[#22c55e]' : 'border-l-[#ef4444]'}`}>
+                      <td className="px-3 py-2 text-text-secondary">{metric.label}</td>
+                      <td className={`px-3 py-2 text-right font-mono ${metric.medianReturn >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>{formatMetric(metric.medianReturn, metric.assetId)}</td>
+                      <td className={`px-3 py-2 text-right font-mono ${metric.meanReturn >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>{formatMetric(metric.meanReturn, metric.assetId)}</td>
+                      <td className="px-3 py-2 text-right font-mono text-text-muted">{formatMetric(metric.stdReturn, metric.assetId)}</td>
+                      <td className={`px-3 py-2 text-right font-mono ${metric.hitRate >= 65 ? 'text-[#22c55e]' : metric.hitRate >= 50 ? 'text-[#f59e0b]' : 'text-[#ef4444]'}`}>{metric.hitRate.toFixed(0)}%</td>
+                      <td className="px-3 py-2 text-center">
+                        <Badge color={metric.direction === 'positive' ? 'green' : 'red'}>
+                          {metric.direction === 'positive' ? 'LONG BIAS' : 'SHORT BIAS'}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 text-center text-text-muted">{metric.sampleSize}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
 
             <div className="text-2xs text-text-dim border-t border-border/40 pt-3 space-y-1">
-              <p>Values measure the move from D0 to {activePoi?.label || `D+${horizonDays}`}. Hit rate is the share of events with a positive forward return.</p>
-              <p className="text-text-dim/70">Use leaders vs laggards for rotation ideas, not as a substitute for the full analogue ranking.</p>
+              <p>Preset mode measures rotation from D0 to the selected POI. Live mode measures from the current effective live scoring day to D+{endOffset}.</p>
+              <p className="text-text-dim/70">Use leaders vs laggards for rotation clues, not as a substitute for the full analogue ranking.</p>
             </div>
           </>
         )}

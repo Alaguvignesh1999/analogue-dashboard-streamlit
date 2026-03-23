@@ -2,12 +2,23 @@ import { cosine } from '@/lib/math';
 import { SIMILARITY_ASSET_POOL } from '@/config/engine';
 import { EventReturns } from './returns';
 import { getSeriesPointAtOrBefore } from './live';
+import { coveragePenalty } from './similarity';
 
 export interface DecayPoint {
   offset: number;
-  scores: { event: string; score: number }[];
+  scores: {
+    event: string;
+    score: number;
+    rawScore: number;
+    sharedAssetCount: number;
+    coverageRatio: number;
+    sparsePenalty: number;
+    confidenceLabel: 'high' | 'medium' | 'thin';
+  }[];
   top1: string;
 }
+
+export type DecayMode = 'live-sim' | 'all-available';
 
 function pathVecAt(
   returnsDict: Record<string, Record<number, number>>,
@@ -36,28 +47,57 @@ export function decayScoresAt(
   dnTarget: number,
   eventNames: string[],
   simAssets?: string[],
-): { event: string; score: number }[] {
-  const livePool = (simAssets || SIMILARITY_ASSET_POOL).filter(
+  mode: DecayMode = 'live-sim',
+): {
+  event: string;
+  score: number;
+  rawScore: number;
+  sharedAssetCount: number;
+  coverageRatio: number;
+  sparsePenalty: number;
+  confidenceLabel: 'high' | 'medium' | 'thin';
+}[] {
+  const basePool = mode === 'all-available' ? Object.keys(liveReturns) : (simAssets || SIMILARITY_ASSET_POOL);
+  const livePool = basePool.filter(
     (asset) => liveReturns[asset] && Object.keys(liveReturns[asset]).length > 0,
   );
 
   if (livePool.length < 2) return [];
 
   const livePath = pathVecAt(liveReturns, livePool, dnTarget);
-  const scores: { event: string; score: number }[] = [];
+  const scores: {
+    event: string;
+    score: number;
+    rawScore: number;
+    sharedAssetCount: number;
+    coverageRatio: number;
+    sparsePenalty: number;
+    confidenceLabel: 'high' | 'medium' | 'thin';
+  }[] = [];
 
   for (const eventName of eventNames) {
     const histDict: Record<string, Record<number, number>> = {};
+    let sharedAssetCount = 0;
     for (const asset of livePool) {
       const hist = eventReturns[asset]?.[eventName];
       if (hist && Object.keys(hist).length > 0) {
         histDict[asset] = hist;
+        sharedAssetCount += 1;
       }
     }
 
     const histPath = pathVecAt(histDict, livePool, dnTarget);
-    const score = (cosine(livePath, histPath) + 1) / 2;
-    scores.push({ event: eventName, score });
+    const rawScore = (cosine(livePath, histPath) + 1) / 2;
+    const coverage = coveragePenalty(sharedAssetCount, livePool.length);
+    scores.push({
+      event: eventName,
+      rawScore,
+      score: rawScore * coverage.sparsePenalty,
+      sharedAssetCount,
+      coverageRatio: coverage.coverageRatio,
+      sparsePenalty: coverage.sparsePenalty,
+      confidenceLabel: coverage.confidenceLabel,
+    });
   }
 
   scores.sort((left, right) => right.score - left.score);
@@ -71,11 +111,12 @@ export function buildDecayTimeline(
   eventNames: string[],
   step = 1,
   simAssets?: string[],
+  mode: DecayMode = 'live-sim',
 ): DecayPoint[] {
   const timeline: DecayPoint[] = [];
 
   for (let dn = 0; dn <= maxDn; dn += Math.max(step, 1)) {
-    const scores = decayScoresAt(eventReturns, liveReturns, dn, eventNames, simAssets);
+    const scores = decayScoresAt(eventReturns, liveReturns, dn, eventNames, simAssets, mode);
     timeline.push({
       offset: dn,
       scores,

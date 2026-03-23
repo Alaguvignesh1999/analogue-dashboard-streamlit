@@ -3,7 +3,9 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, SliderControl } from '@/components/ui/ChartCard';
+import { DiagnosticsStrip } from '@/components/ui/DiagnosticsStrip';
 import { anchorSeriesValue, displayLabel, isSparsePoiSeries, unitLabel } from '@/engine/returns';
+import { getLiveDisplayDay } from '@/engine/live';
 import { POIS, PRE_WINDOW_TD, POST_WINDOW_TD } from '@/config/engine';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -151,7 +153,7 @@ export function OverlayTab() {
   const meta = assetMeta[selectedAsset];
   const unit = unitLabel(meta);
   const title = displayLabel(meta, selectedAsset);
-  const liveDay = live.dayN;
+  const liveDay = live.returns?.[selectedAsset] ? getLiveDisplayDay(live) : null;
 
   const customTooltip = useCallback(({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
@@ -236,6 +238,12 @@ export function OverlayTab() {
         </div>
       }
     >
+      <DiagnosticsStrip
+        live={live}
+        labels={[selectedAsset]}
+        scoringMode="live-sim"
+        extra={<span>Overlay asset: {title}</span>}
+      />
       <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
         Day 0 mode rebases every series at the event anchor. Step-In mode rebases at the chosen entry day so you can compare paths from a delayed entry. Sparse historical events only plot at POI checkpoints, and the orange live line uses the currently loaded live event on the same rebasing rule.
       </div>

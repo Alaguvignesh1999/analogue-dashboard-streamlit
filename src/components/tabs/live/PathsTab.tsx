@@ -2,8 +2,9 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
+import { DiagnosticsStrip } from '@/components/ui/DiagnosticsStrip';
 import { displayLabel, unitLabel, poiRet } from '@/engine/returns';
-import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveScoringDay } from '@/engine/live';
+import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveDisplayDay, getLiveDisplayDate } from '@/engine/live';
 import { filterScoresByActiveEvents, selectEvents, compositeReturn } from '@/engine/similarity';
 import { POIS, POST_WINDOW_TD } from '@/config/engine';
 import { nanMedian } from '@/lib/math';
@@ -46,7 +47,8 @@ export function PathsTab() {
   const activeScores = useMemo(() => filterScoresByActiveEvents(scores, activeEvents), [activeEvents, scores]);
   const selectedEvents = useMemo(() => selectEvents(activeScores, scoreCutoff), [activeScores, scoreCutoff]);
   const dayN = getEffectiveScoringDay(live, [selectedAsset]);
-  const displayDayN = getLiveScoringDay(live);
+  const displayDayN = getLiveDisplayDay(live);
+  const displayDate = getLiveDisplayDate(live);
   const effectiveDate = getEffectiveScoringDate(live, [selectedAsset]);
   const meta = assetMeta[selectedAsset];
   const isRates = meta?.is_rates_bp || false;
@@ -118,14 +120,21 @@ export function PathsTab() {
           </div>
         ) : (
           <>
+            <DiagnosticsStrip
+              live={live}
+              labels={[selectedAsset]}
+              scoringMode="live-sim"
+              extra={<span>Path asset: {displayLabel(meta, selectedAsset)}</span>}
+            />
+
             <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-              The orange line is the live display path through the latest available calendar day, while the score marker shows the effective trading day used for matching. The composite line is the weighted analogue blend for the same asset and event window.
+              The orange live line and orange vertical marker now use the same display D+N logic as Overlay. Effective scoring day remains visible for matching context, but it is no longer the primary live marker on this chart.
             </div>
 
             <div className="px-4 pt-4 grid grid-cols-3 gap-3">
               <StatBox label="Live Path" value={`${chartStats.current > 0 ? '+' : ''}${chartStats.current.toFixed(1)}`} color={chartStats.current >= 0 ? '#22c55e' : '#ef4444'} />
               <StatBox label="Range" value={`+/-${chartStats.range.toFixed(1)}`} color="#00d4aa" />
-              <StatBox label="Analogues" value={selectedEvents.length} color="#ffffff" />
+              <StatBox label="Analogues" value={selectedEvents.length} sub={displayDate || effectiveDate || '--'} color="#ffffff" />
             </div>
 
             <div className="h-[400px] p-2">
@@ -154,7 +163,20 @@ export function PathsTab() {
                     iconType="line"
                   />
                   <ReferenceLine y={0} stroke="#3a3a4e" strokeWidth={1} />
-                  <ReferenceLine x={dayN} stroke="#ffab40" strokeDasharray="3 3" label={{ value: 'Score', position: 'top', fill: '#ffab40', fontSize: 10 }} />
+                  <ReferenceLine
+                    x={displayDayN}
+                    stroke="#ffab40"
+                    strokeDasharray="3 3"
+                    label={{ value: `D+${displayDayN}`, position: 'top', fill: '#ffab40', fontSize: 10 }}
+                  />
+                  {dayN !== displayDayN && (
+                    <ReferenceLine
+                      x={dayN}
+                      stroke="#58a6ff"
+                      strokeDasharray="4 4"
+                      label={{ value: `Score D+${dayN}`, position: 'insideTopLeft', fill: '#58a6ff', fontSize: 9 }}
+                    />
+                  )}
 
                   {selectedEvents.map((eventName, index) => (
                     <Line
