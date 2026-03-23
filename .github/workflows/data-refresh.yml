@@ -34,6 +34,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r scripts/requirements.txt
 
+      - name: Install Streamlit app dependencies
+        run: pip install -r requirements.txt
+
       - name: Pull data
         run: python scripts/pull_data.py
         env:
@@ -46,6 +49,9 @@ jobs:
           ls -lh public/data/
           echo "=== Last updated ==="
           cat public/data/last_updated.json
+
+      - name: Run Streamlit parity and smoke tests
+        run: pytest -q
 
       - name: Commit data
         uses: stefanzweifel/git-auto-commit-action@v7
