@@ -26,6 +26,10 @@ export function getLiveScoringReturns(live: LiveSeriesStateLike): Record<string,
   return live.scoringReturns ?? live.returns ?? null;
 }
 
+export function getLiveDisplayReturns(live: LiveSeriesStateLike): Record<string, Record<number, number>> | null {
+  return live.returns ?? live.scoringReturns ?? null;
+}
+
 export function getLiveDisplayDay(live: LiveSeriesStateLike): number {
   const latestDisplayDay = live.dayN ?? live.tradingDayN ?? 0;
   const requestedDay = live.analysisDayN ?? latestDisplayDay;
@@ -78,6 +82,15 @@ export function getLiveReturnPointAtOrBefore(
   targetOffset: number,
 ): { offset: number; value: number } | null {
   const returns = getLiveScoringReturns(live);
+  return getSeriesPointAtOrBefore(returns?.[label], targetOffset);
+}
+
+export function getLiveDisplayReturnPointAtOrBefore(
+  live: LiveSeriesStateLike,
+  label: string,
+  targetOffset: number,
+): { offset: number; value: number } | null {
+  const returns = getLiveDisplayReturns(live);
   return getSeriesPointAtOrBefore(returns?.[label], targetOffset);
 }
 

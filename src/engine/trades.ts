@@ -1,5 +1,5 @@
 import { AssetMeta, EventReturns, poiRet, unitLabel } from '@/engine/returns';
-import { getLiveReturnPointAtOrBefore, LiveSeriesStateLike } from '@/engine/live';
+import { getLiveDisplayReturnPointAtOrBefore, getLiveReturnPointAtOrBefore, LiveSeriesStateLike } from '@/engine/live';
 import { nanMax, nanMean, nanMedian, nanMin, nanPercentile, nanStd, corrcoef } from '@/lib/math';
 import { stars, statusFromPctile } from '@/lib/format';
 
@@ -240,7 +240,7 @@ export function buildLiveDeviationSeries(
       const value = poiRet(eventReturns, label, eventName, offset);
       if (!Number.isNaN(value)) values.push(value);
     }
-    const livePoint = getLiveReturnPointAtOrBefore(live, label, offset);
+    const livePoint = getLiveDisplayReturnPointAtOrBefore(live, label, offset);
     series.push({
       offset,
       p25: values.length > 0 ? nanPercentile(values, 25) : null,

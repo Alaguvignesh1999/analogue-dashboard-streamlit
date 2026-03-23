@@ -127,6 +127,55 @@ export function ScatterTab() {
   const yLabel = yAsset ? displayLabel(assetMeta[yAsset], yAsset) : 'Y Asset';
   const xUnit = xAsset ? unitLabel(assetMeta[xAsset]) : '';
   const yUnit = yAsset ? unitLabel(assetMeta[yAsset]) : '';
+  const activeEventList = useMemo(
+    () => events.filter((event) => activeEvents.has(event.name)),
+    [events, activeEvents],
+  );
+  const legendEntries = useMemo(
+    () => chartData.map((point) => {
+      const eventIndex = activeEventList.findIndex((event) => event.name === point.event);
+      return {
+        event: point.event,
+        isLive: point.isLive,
+        color: point.isLive ? CHART_THEME.live : getEventSeriesColor(point.event, eventIndex),
+      };
+    }),
+    [activeEventList, chartData],
+  );
+
+  const customTooltip = useMemo(() => ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const point = payload[0]?.payload as ScatterPoint | undefined;
+    if (!point) return null;
+    const eventIndex = activeEventList.findIndex((event) => event.name === point.event);
+    const color = point.isLive ? CHART_THEME.live : getEventSeriesColor(point.event, eventIndex);
+
+    return (
+      <div
+        style={{
+          backgroundColor: CHART_THEME.tooltipBg,
+          border: `1px solid ${CHART_THEME.gridBright}`,
+          borderRadius: 4,
+          padding: '8px 10px',
+          fontFamily: THEME_FONTS.mono,
+          color: CHART_THEME.textPrimary,
+          boxShadow: `0 8px 24px ${alphaThemeColor('shadow', '0.16')}`,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: color, display: 'inline-block' }} />
+          <span style={{ fontSize: 11, fontWeight: 700 }}>{point.event}</span>
+          {point.isLive && <span style={{ fontSize: 10, color: CHART_THEME.live }}>LIVE</span>}
+        </div>
+        <div style={{ fontSize: 11, color: CHART_THEME.textSecondary }}>
+          X: <span style={{ color: CHART_THEME.textPrimary }}>{point.x.toFixed(3)} {xUnit}</span>
+        </div>
+        <div style={{ fontSize: 11, color: CHART_THEME.textSecondary }}>
+          Y: <span style={{ color: CHART_THEME.textPrimary }}>{point.y.toFixed(3)} {yUnit}</span>
+        </div>
+      </div>
+    );
+  }, [activeEventList, xUnit, yUnit]);
 
   return (
     <div className="p-4 space-y-4 animate-fade-in">
@@ -227,15 +276,7 @@ export function ScatterTab() {
                   tickLine={{ stroke: CHART_THEME.axisLine }}
                 />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: CHART_THEME.tooltipBg,
-                    border: `1px solid ${CHART_THEME.gridBright}`,
-                    borderRadius: '4px',
-                    padding: '8px',
-                    fontFamily: THEME_FONTS.mono,
-                    color: CHART_THEME.textPrimary,
-                  }}
-                  formatter={(value: any) => typeof value === 'number' ? value.toFixed(3) : value}
+                  content={customTooltip}
                   cursor={{ fill: alphaThemeColor('accentTeal', '0.08') }}
                 />
 
@@ -255,7 +296,6 @@ export function ScatterTab() {
                   data={chartData}
                   shape={(props: any) => {
                     const { cx, cy, payload } = props;
-                    const activeEventList = events.filter((event) => activeEvents.has(event.name));
                     const eventIndex = activeEventList.findIndex((event) => event.name === payload.event);
                     const color = payload.isLive ? CHART_THEME.live : getEventSeriesColor(payload.event, eventIndex);
                     return (
@@ -276,6 +316,16 @@ export function ScatterTab() {
                 />
               </ScatterChart>
             </ResponsiveContainer>
+          </div>
+        )}
+        {legendEntries.length > 0 && (
+          <div className="px-4 pb-4 pt-2 border-t border-border/30 flex flex-wrap gap-x-4 gap-y-2">
+            {legendEntries.map((entry) => (
+              <div key={`${entry.event}-${entry.isLive ? 'live' : 'hist'}`} className="flex items-center gap-2 text-[10px] font-mono text-text-secondary">
+                <span className="w-3 h-[2px] rounded-full" style={{ backgroundColor: entry.color }} />
+                <span>{entry.event}</span>
+              </div>
+            ))}
           </div>
         )}
       </ChartCard>
