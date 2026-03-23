@@ -1,4 +1,4 @@
-export type ThemeName = 'dark' | 'parchment-terminal' | 'terminal-light';
+export type ThemeName = 'dark' | 'parchment-terminal';
 
 export type ThemeDefinition = {
   label: string;
@@ -107,56 +107,6 @@ const parchmentTokens: Record<string, string> = {
   '--color-series-12': '165 214 255',
 };
 
-const terminalLightTokens: Record<string, string> = {
-  '--color-bg-primary': '236 236 236',
-  '--color-bg-chrome': '248 251 255',
-  '--color-bg-panel': '255 255 255',
-  '--color-bg-cell': '240 240 240',
-  '--color-bg-hover': '224 224 224',
-  '--color-bg-glass': '248 251 255',
-  '--color-bg-selection': '10 10 10',
-  '--color-border': '136 136 136',
-  '--color-border-bright': '102 102 102',
-  '--color-scrollbar': '136 136 136',
-  '--color-scrollbar-hover': '102 102 102',
-  '--color-text-primary': '10 10 10',
-  '--color-text-secondary': '51 51 51',
-  '--color-text-muted': '102 102 102',
-  '--color-text-dim': '107 107 107',
-  '--color-accent-teal': '26 107 42',
-  '--color-accent-amber': '85 85 85',
-  '--color-accent-blue': '0 68 153',
-  '--color-accent-purple': '112 92 212',
-  '--color-ui-accent': '10 10 10',
-  '--color-control-bg': '255 255 255',
-  '--color-control-hover': '235 235 235',
-  '--color-control-active-bg': '10 10 10',
-  '--color-control-active-text': '255 255 255',
-  '--color-control-active-border': '10 10 10',
-  '--color-up': '26 107 42',
-  '--color-down': '192 0 12',
-  '--color-live': '137 118 255',
-  '--color-tooltip-bg': '255 255 255',
-  '--color-chart-axis-tick': '85 85 85',
-  '--color-chart-axis-line': '187 187 187',
-  '--color-chart-grid': '235 235 235',
-  '--color-chart-zero': '136 136 136',
-  '--color-shadow': '0 0 0',
-  '--color-series-0': '88 166 255',
-  '--color-series-1': '247 129 102',
-  '--color-series-2': '63 185 80',
-  '--color-series-3': '210 168 255',
-  '--color-series-4': '255 166 87',
-  '--color-series-5': '255 123 114',
-  '--color-series-6': '121 192 255',
-  '--color-series-7': '86 211 100',
-  '--color-series-8': '227 179 65',
-  '--color-series-9': '188 140 255',
-  '--color-series-10': '255 155 206',
-  '--color-series-11': '137 221 255',
-  '--color-series-12': '165 214 255',
-};
-
 export const THEMES: Record<ThemeName, ThemeDefinition> = {
   dark: {
     label: 'Dark',
@@ -170,20 +120,14 @@ export const THEMES: Record<ThemeName, ThemeDefinition> = {
     themeColor: '#f4f4f4',
     tokens: parchmentTokens,
   },
-  'terminal-light': {
-    label: 'Terminal',
-    description: 'Higher-density neutral terminal using the verified light spec',
-    themeColor: '#ececec',
-    tokens: terminalLightTokens,
-  },
 };
 
 export const DEFAULT_THEME: ThemeName = 'dark';
 export const THEME_STORAGE_KEY = 'analogue-theme';
-export const LIGHT_THEMES: ThemeName[] = ['parchment-terminal', 'terminal-light'];
+export const LIGHT_THEMES: ThemeName[] = ['parchment-terminal'];
 
 export function isThemeName(value: string | null | undefined): value is ThemeName {
-  return value === 'dark' || value === 'parchment-terminal' || value === 'terminal-light';
+  return value === 'dark' || value === 'parchment-terminal';
 }
 
 export function buildThemeStyleSheet(): string {

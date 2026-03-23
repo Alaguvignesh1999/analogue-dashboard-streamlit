@@ -1,4 +1,4 @@
-import { TRIGGER_ASSET } from '@/config/engine';
+import { PRE_WINDOW_TD, TRIGGER_ASSET } from '@/config/engine';
 import { AssetMeta } from '@/engine/returns';
 import { buildValidSeries } from '@/engine/customEvents';
 import { DailyHistoryPayload, LiveAssetStatus, LiveRequestMode, SharedLiveSnapshot } from '@/engine/types';
@@ -48,23 +48,28 @@ function computeObservedSeries(
   const scoringReturns: Record<number, number> = {};
   const scoringLevels: Record<number, number> = {};
   const observedDates: string[] = [];
+  const windowStart = Math.max(0, day0Index - PRE_WINDOW_TD - 5);
 
-  for (let index = day0Index; index < series.length; index += 1) {
+  for (let index = windowStart; index < series.length; index += 1) {
     const point = series[index];
     const offset = dayDiff(actualDay0, point.date);
-    if (offset < 0) continue;
-
-    observedDates.push(point.date);
     rawLevels[offset] = point.value;
-    scoringLevels[index - day0Index] = point.value;
-
     if (meta.is_rates_bp) {
       rawReturns[offset] = (point.value - baselinePrice) * 100;
-      scoringReturns[index - day0Index] = (point.value - baselinePrice) * 100;
     } else {
       const change = (point.value / baselinePrice - 1) * 100;
       rawReturns[offset] = meta.invert ? change : -change;
-      scoringReturns[index - day0Index] = meta.invert ? change : -change;
+    }
+
+    if (index >= day0Index) {
+      observedDates.push(point.date);
+      scoringLevels[index - day0Index] = point.value;
+      if (meta.is_rates_bp) {
+        scoringReturns[index - day0Index] = (point.value - baselinePrice) * 100;
+      } else {
+        const change = (point.value / baselinePrice - 1) * 100;
+        scoringReturns[index - day0Index] = meta.invert ? change : -change;
+      }
     }
   }
 
@@ -95,14 +100,16 @@ function fillCalendarSeries(
     };
   }
 
+  const startOffset = Math.max(offsets[0], -PRE_WINDOW_TD);
   const lastObservedOffset = offsets[offsets.length - 1];
   const fillLimit = Math.min(targetOffset, lastObservedOffset + maxCarryDays);
   const returns: Record<number, number> = {};
   const levels: Record<number, number> = {};
-  let lastReturn = 0;
-  let lastLevel = day0Price;
+  const firstObservedOffset = offsets.find((offset) => offset >= startOffset) ?? offsets[0];
+  let lastReturn = rawReturns[firstObservedOffset] ?? 0;
+  let lastLevel = rawLevels[firstObservedOffset] ?? day0Price;
 
-  for (let offset = 0; offset <= fillLimit; offset += 1) {
+  for (let offset = startOffset; offset <= fillLimit; offset += 1) {
     if (rawReturns[offset] !== undefined) lastReturn = rawReturns[offset];
     if (rawLevels[offset] !== undefined) lastLevel = rawLevels[offset];
     returns[offset] = lastReturn;

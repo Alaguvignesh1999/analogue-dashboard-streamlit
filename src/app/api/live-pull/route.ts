@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import path from 'path';
+import { PRE_WINDOW_TD } from '@/config/engine';
 import { buildLivePayloadFromDailyHistory } from '@/engine/liveBuilder';
 import { LiveRequestMode } from '@/engine/types';
 import { loadDailyHistoryFromDisk, loadMetaAssetMap, loadSharedLiveSnapshot } from '@/lib/serverArtifacts';
@@ -198,25 +199,31 @@ function computeSeries(
   const scoringLevels: Record<number, number> = {};
   const observedDates: string[] = [];
   const tradingDates: string[] = [];
+  const windowStart = Math.max(0, day0Index - PRE_WINDOW_TD - 5);
 
-  for (let index = day0Index; index < dates.length; index += 1) {
+  for (let index = windowStart; index < dates.length; index += 1) {
     const price = prices[index];
     if (Number.isNaN(price)) continue;
     const offset = dayDiff(actualDay0, dates[index]);
-    if (offset < 0) continue;
-
-    observedDates.push(dates[index]);
-    tradingDates.push(dates[index]);
     rawLevels[offset] = price;
-    scoringLevels[index - day0Index] = price;
 
     if (isRatesBp) {
       rawReturns[offset] = (price - baselinePrice) * 100;
-      scoringReturns[index - day0Index] = (price - baselinePrice) * 100;
     } else {
       const change = (price / baselinePrice - 1) * 100;
       rawReturns[offset] = invert ? change : -change;
-      scoringReturns[index - day0Index] = invert ? change : -change;
+    }
+
+    if (index >= day0Index) {
+      observedDates.push(dates[index]);
+      tradingDates.push(dates[index]);
+      scoringLevels[index - day0Index] = price;
+      if (isRatesBp) {
+        scoringReturns[index - day0Index] = (price - baselinePrice) * 100;
+      } else {
+        const change = (price / baselinePrice - 1) * 100;
+        scoringReturns[index - day0Index] = invert ? change : -change;
+      }
     }
   }
 
@@ -249,14 +256,16 @@ function fillCalendarSeries(
     };
   }
 
+  const startOffset = Math.max(offsets[0], -PRE_WINDOW_TD);
   const lastObservedOffset = offsets[offsets.length - 1];
   const fillLimit = Math.min(targetOffset, lastObservedOffset + maxCarryDays);
   const returns: Record<number, number> = {};
   const levels: Record<number, number> = {};
-  let lastReturn = 0;
-  let lastLevel = day0Price;
+  const firstObservedOffset = offsets.find((offset) => offset >= startOffset) ?? offsets[0];
+  let lastReturn = rawReturns[firstObservedOffset] ?? 0;
+  let lastLevel = rawLevels[firstObservedOffset] ?? day0Price;
 
-  for (let offset = 0; offset <= fillLimit; offset += 1) {
+  for (let offset = startOffset; offset <= fillLimit; offset += 1) {
     if (rawReturns[offset] !== undefined) lastReturn = rawReturns[offset];
     if (rawLevels[offset] !== undefined) lastLevel = rawLevels[offset];
     returns[offset] = lastReturn;
@@ -285,6 +294,36 @@ export async function GET(request: NextRequest) {
 
     if (sharedSnapshot && mode === 'shared' && date === sharedSnapshot.requestedDay0) {
       const filteredLabels = requestedLabels || Object.keys(sharedSnapshot.returns || {});
+      const sharedReturns = Object.fromEntries(
+        Object.entries(sharedSnapshot.returns || {}).filter(([label]) => filteredLabels.includes(label))
+      );
+      const hasNegativeWindow = Object.values(sharedReturns).some((series) =>
+        Object.keys(series).some((offset) => Number(offset) < 0)
+      );
+
+      if (!hasNegativeWindow && dailyHistory && Object.keys(assetMeta).length > 0) {
+        const rebuiltShared = buildLivePayloadFromDailyHistory(
+          dailyHistory,
+          assetMeta,
+          date,
+          'shared',
+          {
+            name: sharedSnapshot.name,
+            labels: filteredLabels,
+            source: 'generated-history',
+            schemaVersion: sharedSnapshot.provenance?.schemaVersion ?? dailyHistory.schemaVersion ?? null,
+            warnings: sharedSnapshot.warnings || [],
+          },
+        );
+
+        return NextResponse.json({
+          ...rebuiltShared,
+          snapshotDate: sharedSnapshot.snapshotDate ?? rebuiltShared.snapshotDate,
+          assetCount: filteredLabels.length,
+          timestamp: rebuiltShared.provenance.builtAt,
+        });
+      }
+
       const filterMap = (source: Record<string, Record<number, number>>) =>
         Object.fromEntries(Object.entries(source).filter(([label]) => filteredLabels.includes(label)));
       const filteredStatus = Object.fromEntries(
@@ -329,7 +368,7 @@ export async function GET(request: NextRequest) {
 
     const requestedDay0 = new Date(date);
     const startDate = new Date(requestedDay0);
-    startDate.setDate(startDate.getDate() - 10);
+    startDate.setDate(startDate.getDate() - (PRE_WINDOW_TD + 42));
 
     const endDate = new Date();
     endDate.setDate(endDate.getDate() + 1);

@@ -1,4 +1,4 @@
-import { ThemeName } from '@/theme/registry';
+import { DEFAULT_THEME, isThemeName, ThemeName } from '@/theme/registry';
 
 const colorVar = (token: string) => `rgb(var(${token}))`;
 const alphaColorVar = (token: string, alpha: number | string) => `rgb(var(${token}) / ${alpha})`;
@@ -78,7 +78,13 @@ function getCanonicalEventIndex(eventName: string): number {
   return stableSeriesIndex(eventName, CHART_SERIES_PALETTE.length);
 }
 
-export function isLightTheme(theme: ThemeName): boolean {
+function getActiveThemeName(): ThemeName {
+  if (typeof document === 'undefined') return DEFAULT_THEME;
+  const theme = document.documentElement.dataset.theme;
+  return isThemeName(theme) ? theme : DEFAULT_THEME;
+}
+
+export function isLightTheme(theme: ThemeName = getActiveThemeName()): boolean {
   return theme !== 'dark';
 }
 
@@ -91,8 +97,8 @@ export function getEventSeriesColor(eventName: string, index = 0, _theme?: Theme
   return CHART_SERIES_PALETTE[stableIndex];
 }
 
-export function themeStrokeWidth(baseWidth: number, _theme?: ThemeName): number {
-  return baseWidth;
+export function themeStrokeWidth(baseWidth: number, theme: ThemeName = getActiveThemeName()): number {
+  return isLightTheme(theme) ? Math.max(baseWidth + 0.35, 1.4) : baseWidth;
 }
 
 export function themeDashPattern(darkPattern: string | undefined, _lightPattern = '5 4', _theme?: ThemeName): string | undefined {

@@ -62,10 +62,6 @@ export function HeatmapTab() {
     if (live.returns?.[selectedAsset] && live.dayN !== null) {
       const row: Array<number | null> = [];
       for (const poi of POIS) {
-        if (poi.offset < 0 || poi.offset > live.dayN) {
-          row.push(null);
-          continue;
-        }
         const value = anchorSeriesValue(live.returns[selectedAsset], poi.offset, 'day0');
         const rounded = value === null ? null : Math.round(value * 10) / 10;
         row.push(rounded);

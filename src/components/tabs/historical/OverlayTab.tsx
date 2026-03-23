@@ -82,14 +82,14 @@ export function OverlayTab() {
 
       if (live.returns?.[selectedAsset]) {
         const series = live.returns[selectedAsset];
-        const dayN = live.dayN ?? 0;
-        if (offset >= 0 && offset <= dayN) {
-          point.__live__ = anchorSeriesValue(
-            series,
-            offset,
-            anchorMode === 'stepin' ? 'stepin' : 'day0',
-            stepDay,
-          );
+        const liveValue = anchorSeriesValue(
+          series,
+          offset,
+          anchorMode === 'stepin' ? 'stepin' : 'day0',
+          stepDay,
+        );
+        if (liveValue !== null) {
+          point.__live__ = liveValue;
         }
       }
 
@@ -363,7 +363,7 @@ export function OverlayTab() {
         </div>
       </div>
       <BottomDescription>
-        Day 0 mode rebases every series at the event anchor. Step-In mode rebases at the chosen entry day so you can compare paths from a delayed entry. Sparse historical events only plot at POI checkpoints, and the orange live line uses the currently loaded live event on the same rebasing rule.
+        Day 0 mode rebases every series at the event anchor. Step-In mode rebases at the chosen entry day so you can compare paths from a delayed entry. Sparse historical events only plot at POI checkpoints, and the live line now extends through the available pre-event window as well as the post-event path.
       </BottomDescription>
     </ChartCard>
   );

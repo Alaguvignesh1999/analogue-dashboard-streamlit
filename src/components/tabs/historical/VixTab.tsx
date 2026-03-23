@@ -1,4 +1,5 @@
 'use client';
+
 import { useMemo } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { BottomDescription, ChartCard } from '@/components/ui/ChartCard';
@@ -40,7 +41,7 @@ export function VixTab() {
       point.q1 = values.length >= 2 ? nanPercentile(values, 25) : null;
       point.q3 = values.length >= 2 ? nanPercentile(values, 75) : null;
 
-      if (live.returns?.VIX && live.dayN !== null && offset >= 0 && offset <= live.dayN) {
+      if (live.returns?.VIX) {
         const liveValue = live.returns.VIX[offset];
         if (liveValue !== undefined) point.__live__ = liveValue;
       }
@@ -63,7 +64,7 @@ export function VixTab() {
     <div className="p-4 space-y-4 animate-fade-in">
       <ChartCard
         title="VIX Path Analysis"
-        subtitle={`${activeEventNames.length} events · median ± IQR band${liveVixDate ? ` · live D+${liveVixDay} (${liveVixDate})` : ''}`}
+        subtitle={`${activeEventNames.length} events | median +/- IQR band${liveVixDate ? ` | live D+${liveVixDay} (${liveVixDate})` : ''}`}
       >
         {!hasData ? (
           <div className="h-[420px] flex items-center justify-center text-text-dim text-xs">
@@ -122,14 +123,20 @@ export function VixTab() {
                 })}
 
                 {live.returns?.VIX && (
-                  <Line dataKey="__live__" stroke={CHART_THEME.live} strokeWidth={themeStrokeWidth(2.5)} dot={{ r: 2, fill: CHART_THEME.live, strokeWidth: 0 }} connectNulls={false} />
+                  <Line
+                    dataKey="__live__"
+                    stroke={CHART_THEME.live}
+                    strokeWidth={themeStrokeWidth(2.5)}
+                    dot={{ r: 2, fill: CHART_THEME.live, strokeWidth: 0 }}
+                    connectNulls={false}
+                  />
                 )}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
         )}
         <BottomDescription>
-          The blue band shows the historical VIX distribution across the active event set, while the live line shows the current event path. Compare both shape and level: a live line above the upper band means volatility is running hotter than most analogues at the same point in the event window.
+          The blue band shows the historical VIX distribution across the active event set, while the live line now includes the available pre-event build-up as well as the post-event path. Compare both shape and level: a live line above the upper band means volatility is running hotter than most analogues at the same point in the event window.
         </BottomDescription>
       </ChartCard>
 

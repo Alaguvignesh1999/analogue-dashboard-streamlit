@@ -52,10 +52,9 @@ def parse_rgb_triplets(block_name: str, registry_text: str) -> list[str]:
 def assert_light_series_palettes_match_dark(registry_text: str) -> None:
     dark_series = parse_rgb_triplets("darkTokens", registry_text)
     parchment_series = parse_rgb_triplets("parchmentTokens", registry_text)
-    terminal_series = parse_rgb_triplets("terminalLightTokens", registry_text)
-    if len(dark_series) != 13 or len(parchment_series) != 13 or len(terminal_series) != 13:
+    if len(dark_series) != 13 or len(parchment_series) != 13:
         raise AssertionError("Expected exactly 13 chart-series tokens per theme")
-    if dark_series != parchment_series or dark_series != terminal_series:
+    if dark_series != parchment_series:
         raise AssertionError("Light themes must preserve the canonical series palette ordering")
 
 
@@ -69,8 +68,9 @@ def assert_chart_palette_is_canonical(theme_chart: str) -> None:
 
 def main() -> int:
     registry = read("src/theme/registry.ts")
-    for needle in ["dark:", "parchment-terminal", "terminal-light", "buildThemeStyleSheet", "THEME_STORAGE_KEY", "themeColor", "description", "LIGHT_THEMES"]:
+    for needle in ["dark:", "parchment-terminal", "buildThemeStyleSheet", "THEME_STORAGE_KEY", "themeColor", "description", "LIGHT_THEMES"]:
         assert_contains(registry, needle, "src/theme/registry.ts")
+    assert_not_contains(registry, "terminal-light", "src/theme/registry.ts")
 
     provider = read("src/theme/provider.tsx")
     assert_contains(provider, "ThemeProvider", "src/theme/provider.tsx")
@@ -106,7 +106,7 @@ def main() -> int:
             assert_not_contains(text, hex_value, rel_path)
 
     globals_css = read("src/app/globals.css")
-    for needle in ["rgb(var(--color-bg-primary))", "rgb(var(--color-text-primary))", "rgb(var(--color-tooltip-bg)", ".theme-transition", "parchment-terminal", "terminal-light", "var(--font-plex-mono)"]:
+    for needle in ["rgb(var(--color-bg-primary))", "rgb(var(--color-text-primary))", "rgb(var(--color-tooltip-bg)", ".theme-transition", "parchment-terminal", "var(--font-plex-mono)"]:
         assert_contains(globals_css, needle, "src/app/globals.css")
 
     theme_chart = read("src/theme/chart.ts")
