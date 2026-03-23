@@ -4,8 +4,10 @@ import { useMemo, useState, useEffect } from 'react';
 import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, SliderControl, EmptyState } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel, unitLabel, eventDateMap, isAssetAvailableForEvent } from '@/engine/returns';
-import { getSeriesPointAtOrBefore } from '@/engine/live';
+import { getLiveDisplayDay, getSeriesPointAtOrBefore } from '@/engine/live';
 import { POIS, PRE_WINDOW_TD, POST_WINDOW_TD } from '@/config/engine';
+import { CHART_THEME } from '@/config/theme';
+import { alphaThemeColor, getEventSeriesColor, THEME_COLORS, THEME_FONTS } from '@/theme/chart';
 import {
   ScatterChart,
   Scatter,
@@ -16,12 +18,6 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-const PALETTE = [
-  '#00e5ff', '#ff5252', '#69f0ae', '#b388ff', '#ffab40',
-  '#ff80ab', '#40c4ff', '#ccff90', '#ffd740', '#ea80fc',
-  '#84ffff', '#ff6e40', '#a7ffeb',
-];
-
 interface ScatterPoint {
   x: number;
   y: number;
@@ -31,6 +27,8 @@ interface ScatterPoint {
 
 export function ScatterTab() {
   const { eventReturns, assetMeta, allLabels, events, activeEvents, availability, live } = useDashboard();
+  const liveDisplayDay = getLiveDisplayDay(live);
+  const hasLiveSeries = !!live.returns && Object.keys(live.returns).length > 0;
 
   const [xAsset, setXAsset] = useState<string>('');
   const [yAsset, setYAsset] = useState<string>('');
@@ -72,9 +70,9 @@ export function ScatterTab() {
       points.push({ x: xValue, y: yValue, event: event.name, isLive: false });
     }
 
-    if (live.returns && live.dayN !== null) {
-      const xLivePoint = getSeriesPointAtOrBefore(live.returns[xAsset], live.dayN);
-      const yLivePoint = getSeriesPointAtOrBefore(live.returns[yAsset], live.dayN);
+    if (live.returns && hasLiveSeries) {
+      const xLivePoint = getSeriesPointAtOrBefore(live.returns[xAsset], liveDisplayDay);
+      const yLivePoint = getSeriesPointAtOrBefore(live.returns[yAsset], liveDisplayDay);
       if (xLivePoint && yLivePoint) {
         const xBasePoint = stepMode ? getSeriesPointAtOrBefore(live.returns[xAsset], stepDay) : null;
         const yBasePoint = stepMode ? getSeriesPointAtOrBefore(live.returns[yAsset], stepDay) : null;
@@ -88,7 +86,7 @@ export function ScatterTab() {
     }
 
     return points;
-  }, [activeEvents, availability, eventDates, eventReturns, events, live.dayN, live.name, live.returns, poi, stepDay, stepMode, xAsset, yAsset]);
+  }, [activeEvents, availability, eventDates, eventReturns, events, hasLiveSeries, live.name, live.returns, liveDisplayDay, poi, stepDay, stepMode, xAsset, yAsset]);
 
   const regression = useMemo(() => {
     if (chartData.length < 2) return null;
@@ -131,6 +129,55 @@ export function ScatterTab() {
   const yLabel = yAsset ? displayLabel(assetMeta[yAsset], yAsset) : 'Y Asset';
   const xUnit = xAsset ? unitLabel(assetMeta[xAsset]) : '';
   const yUnit = yAsset ? unitLabel(assetMeta[yAsset]) : '';
+  const activeEventList = useMemo(
+    () => events.filter((event) => activeEvents.has(event.name)),
+    [events, activeEvents],
+  );
+  const legendEntries = useMemo(
+    () => chartData.map((point) => {
+      const eventIndex = activeEventList.findIndex((event) => event.name === point.event);
+      return {
+        event: point.event,
+        isLive: point.isLive,
+        color: point.isLive ? CHART_THEME.live : getEventSeriesColor(point.event, eventIndex),
+      };
+    }),
+    [activeEventList, chartData],
+  );
+
+  const customTooltip = useMemo(() => ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const point = payload[0]?.payload as ScatterPoint | undefined;
+    if (!point) return null;
+    const eventIndex = activeEventList.findIndex((event) => event.name === point.event);
+    const color = point.isLive ? CHART_THEME.live : getEventSeriesColor(point.event, eventIndex);
+
+    return (
+      <div
+        style={{
+          backgroundColor: CHART_THEME.tooltipBg,
+          border: `1px solid ${CHART_THEME.gridBright}`,
+          borderRadius: 4,
+          padding: '8px 10px',
+          fontFamily: THEME_FONTS.mono,
+          color: CHART_THEME.textPrimary,
+          boxShadow: `0 8px 24px ${alphaThemeColor('shadow', '0.16')}`,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: color, display: 'inline-block' }} />
+          <span style={{ fontSize: 11, fontWeight: 700 }}>{point.event}</span>
+          {point.isLive && <span style={{ fontSize: 10, color: CHART_THEME.live }}>LIVE</span>}
+        </div>
+        <div style={{ fontSize: 11, color: CHART_THEME.textSecondary }}>
+          X: <span style={{ color: CHART_THEME.textPrimary }}>{point.x.toFixed(3)} {xUnit}</span>
+        </div>
+        <div style={{ fontSize: 11, color: CHART_THEME.textSecondary }}>
+          Y: <span style={{ color: CHART_THEME.textPrimary }}>{point.y.toFixed(3)} {yUnit}</span>
+        </div>
+      </div>
+    );
+  }, [activeEventList, xUnit, yUnit]);
 
   return (
     <div className="p-4 space-y-4 animate-fade-in">
@@ -165,7 +212,8 @@ export function ScatterTab() {
                 id="scatter-step-mode"
                 checked={stepMode}
                 onChange={(event) => setStepMode(event.target.checked)}
-                className="h-4 w-4 accent-accent-teal cursor-pointer"
+                className="h-4 w-4 cursor-pointer"
+                style={{ accentColor: THEME_COLORS.controlActiveBg }}
               />
               <label htmlFor="scatter-step-mode" className="text-2xs font-medium text-text-secondary cursor-pointer">
                 Step Mode
@@ -195,7 +243,7 @@ export function ScatterTab() {
           <div className="h-[560px] border-t border-border/40">
             <ResponsiveContainer width="100%" height="100%">
               <ScatterChart margin={{ top: 20, right: 20, bottom: 60, left: 60 }}>
-                <CartesianGrid strokeDasharray="2 8" stroke="#1e1e22" vertical={false} />
+                <CartesianGrid strokeDasharray="2 8" stroke={CHART_THEME.grid} vertical={false} />
                 <XAxis
                   dataKey="x"
                   type="number"
@@ -204,13 +252,13 @@ export function ScatterTab() {
                     value: `${xLabel} (${xUnit})`,
                     position: 'bottom',
                     offset: 10,
-                    fill: '#71717a',
+                    fill: CHART_THEME.textMuted,
                     fontSize: 10,
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: THEME_FONTS.mono,
                   }}
-                  tick={{ fill: '#71717a', fontSize: 10, fontFamily: 'JetBrains Mono' }}
-                  axisLine={{ stroke: '#1e1e22' }}
-                  tickLine={{ stroke: '#1e1e22' }}
+                  tick={{ fill: CHART_THEME.textMuted, fontSize: 10, fontFamily: THEME_FONTS.mono }}
+                  axisLine={{ stroke: CHART_THEME.axisLine }}
+                  tickLine={{ stroke: CHART_THEME.axisLine }}
                 />
                 <YAxis
                   dataKey="y"
@@ -221,31 +269,24 @@ export function ScatterTab() {
                     angle: -90,
                     position: 'insideLeft',
                     offset: -10,
-                    fill: '#71717a',
+                    fill: CHART_THEME.textMuted,
                     fontSize: 10,
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: THEME_FONTS.mono,
                   }}
-                  tick={{ fill: '#71717a', fontSize: 10, fontFamily: 'JetBrains Mono' }}
-                  axisLine={{ stroke: '#1e1e22' }}
-                  tickLine={{ stroke: '#1e1e22' }}
+                  tick={{ fill: CHART_THEME.textMuted, fontSize: 10, fontFamily: THEME_FONTS.mono }}
+                  axisLine={{ stroke: CHART_THEME.axisLine }}
+                  tickLine={{ stroke: CHART_THEME.axisLine }}
                 />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'rgba(12,12,18,0.96)',
-                    border: '1px solid #1e1e22',
-                    borderRadius: '4px',
-                    padding: '8px',
-                    fontFamily: 'JetBrains Mono',
-                  }}
-                  formatter={(value: any) => typeof value === 'number' ? value.toFixed(3) : value}
-                  cursor={{ fill: 'rgba(0, 212, 170, 0.08)' }}
+                  content={customTooltip}
+                  cursor={{ fill: alphaThemeColor('accentTeal', '0.08') }}
                 />
 
                 {regression?.line && (
                   <Scatter
                     name="Regression"
                     data={regression.line}
-                    fill="#b388ff"
+                    fill={CHART_THEME.accentPurple}
                     line
                     lineType="joint"
                     shape={(props: any) => <circle cx={props.cx} cy={props.cy} r={0} fill="none" />}
@@ -257,9 +298,8 @@ export function ScatterTab() {
                   data={chartData}
                   shape={(props: any) => {
                     const { cx, cy, payload } = props;
-                    const activeEventList = events.filter((event) => activeEvents.has(event.name));
                     const eventIndex = activeEventList.findIndex((event) => event.name === payload.event);
-                    const color = payload.isLive ? '#ffab40' : PALETTE[eventIndex % PALETTE.length];
+                    const color = payload.isLive ? CHART_THEME.live : getEventSeriesColor(payload.event, eventIndex);
                     return (
                       <circle
                         cx={cx}
@@ -269,8 +309,8 @@ export function ScatterTab() {
                         opacity={0.85}
                         style={{
                           filter: payload.isLive
-                            ? 'drop-shadow(0 0 8px #ffab40)'
-                            : `drop-shadow(0 0 4px ${color}40)`,
+                            ? `drop-shadow(0 0 8px ${alphaThemeColor('live', '0.35')})`
+                            : `drop-shadow(0 0 4px ${alphaThemeColor('shadow', '0.16')})`,
                         }}
                       />
                     );
@@ -278,6 +318,16 @@ export function ScatterTab() {
                 />
               </ScatterChart>
             </ResponsiveContainer>
+          </div>
+        )}
+        {legendEntries.length > 0 && (
+          <div className="px-4 pb-4 pt-2 border-t border-border/30 flex flex-wrap gap-x-4 gap-y-2">
+            {legendEntries.map((entry) => (
+              <div key={`${entry.event}-${entry.isLive ? 'live' : 'hist'}`} className="flex items-center gap-2 text-[10px] font-mono text-text-secondary">
+                <span className="w-3 h-[2px] rounded-full" style={{ backgroundColor: entry.color }} />
+                <span>{entry.event}</span>
+              </div>
+            ))}
           </div>
         )}
       </ChartCard>
@@ -290,7 +340,7 @@ export function ScatterTab() {
         {regression?.r2 !== null && regression?.r2 !== undefined && (
           <div className="p-3 bg-bg-cell/50 border border-border/40 rounded-sm">
             <div className="text-3xs text-text-dim uppercase tracking-wider mb-1 font-semibold">R2</div>
-            <div className="text-sm font-bold text-accent-teal font-mono">{regression.r2.toFixed(3)}</div>
+            <div className="text-sm font-bold text-accent-blue font-mono">{regression.r2.toFixed(3)}</div>
           </div>
         )}
       </div>

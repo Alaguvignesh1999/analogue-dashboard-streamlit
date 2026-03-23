@@ -10,14 +10,44 @@ export interface LiveSeriesStateLike {
   asOfDate?: string | null;
 }
 
+export interface LiveDiagnosticsSummary {
+  displayDayN: number;
+  displayDate: string | null;
+  scoringDayN: number;
+  scoringDate: string | null;
+  effectiveDayN: number;
+  effectiveDate: string | null;
+  availableAssetCount: number;
+  requestedAssetCount: number;
+  coverageRatio: number;
+}
+
 export function getLiveScoringReturns(live: LiveSeriesStateLike): Record<string, Record<number, number>> | null {
   return live.scoringReturns ?? live.returns ?? null;
+}
+
+export function getLiveDisplayReturns(live: LiveSeriesStateLike): Record<string, Record<number, number>> | null {
+  return live.returns ?? live.scoringReturns ?? null;
+}
+
+export function getLiveDisplayDay(live: LiveSeriesStateLike): number {
+  const latestDisplayDay = live.dayN ?? live.tradingDayN ?? 0;
+  const requestedDay = live.analysisDayN ?? latestDisplayDay;
+  return Math.max(0, Math.min(requestedDay, latestDisplayDay));
 }
 
 export function getLiveScoringDay(live: LiveSeriesStateLike): number {
   const latestAvailableDay = live.tradingDayN ?? live.dayN ?? 0;
   const requestedDay = live.analysisDayN ?? latestAvailableDay;
   return Math.max(0, Math.min(requestedDay, latestAvailableDay));
+}
+
+export function getLiveDisplayDate(live: LiveSeriesStateLike): string | null {
+  const displayDay = getLiveDisplayDay(live);
+  if (live.businessDates && displayDay >= 0 && displayDay < live.businessDates.length) {
+    return live.businessDates[displayDay] ?? live.asOfDate ?? null;
+  }
+  return live.asOfDate ?? null;
 }
 
 export function getLiveScoringLevels(live: LiveSeriesStateLike): Record<string, Record<number, number>> | null {
@@ -52,6 +82,15 @@ export function getLiveReturnPointAtOrBefore(
   targetOffset: number,
 ): { offset: number; value: number } | null {
   const returns = getLiveScoringReturns(live);
+  return getSeriesPointAtOrBefore(returns?.[label], targetOffset);
+}
+
+export function getLiveDisplayReturnPointAtOrBefore(
+  live: LiveSeriesStateLike,
+  label: string,
+  targetOffset: number,
+): { offset: number; value: number } | null {
+  const returns = getLiveDisplayReturns(live);
   return getSeriesPointAtOrBefore(returns?.[label], targetOffset);
 }
 
@@ -112,4 +151,57 @@ export function getEffectiveScoringDate(
     return live.businessDates[effectiveDay] ?? live.asOfDate ?? null;
   }
   return live.asOfDate ?? null;
+}
+
+export function getLiveAssetCoverage(
+  live: LiveSeriesStateLike,
+  labels?: string[],
+  targetOffset?: number,
+): { available: number; total: number; ratio: number } {
+  const returns = getLiveScoringReturns(live);
+  if (!returns) return { available: 0, total: labels?.length || 0, ratio: 0 };
+
+  const candidateLabels = (labels && labels.length > 0 ? labels : Object.keys(returns));
+  const resolvedOffset = targetOffset ?? getLiveScoringDay(live);
+  let available = 0;
+
+  for (const label of candidateLabels) {
+    if (getSeriesPointAtOrBefore(returns[label], resolvedOffset)) {
+      available += 1;
+    }
+  }
+
+  const total = candidateLabels.length;
+  return {
+    available,
+    total,
+    ratio: total > 0 ? available / total : 0,
+  };
+}
+
+export function getLiveDiagnosticsSummary(
+  live: LiveSeriesStateLike,
+  labels?: string[],
+): LiveDiagnosticsSummary {
+  const displayDayN = getLiveDisplayDay(live);
+  const displayDate = getLiveDisplayDate(live);
+  const scoringDayN = getLiveScoringDay(live);
+  const scoringDate = live.businessDates && scoringDayN >= 0 && scoringDayN < live.businessDates.length
+    ? live.businessDates[scoringDayN] ?? live.asOfDate ?? null
+    : live.asOfDate ?? null;
+  const effectiveDayN = getEffectiveScoringDay(live, labels);
+  const effectiveDate = getEffectiveScoringDate(live, labels);
+  const coverage = getLiveAssetCoverage(live, labels, effectiveDayN);
+
+  return {
+    displayDayN,
+    displayDate,
+    scoringDayN,
+    scoringDate,
+    effectiveDayN,
+    effectiveDate,
+    availableAssetCount: coverage.available,
+    requestedAssetCount: coverage.total,
+    coverageRatio: coverage.ratio,
+  };
 }

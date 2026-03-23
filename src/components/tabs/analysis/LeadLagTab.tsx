@@ -4,25 +4,28 @@ import { useDashboard } from '@/store/dashboard';
 import { ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
 import { poiRet, displayLabel } from '@/engine/returns';
 import { POIS } from '@/config/engine';
-import { CUSTOM_GROUPS } from '@/config/assets';
+import { ALL_ASSETS_OPTION, getGroupLabels, groupOptionsFromData } from '@/config/assets';
 import { nanMean, corrcoef } from '@/lib/math';
+import { alphaThemeColor } from '@/theme/chart';
+import { CHART_THEME } from '@/config/theme';
 
 function leadLagColor(value: number, maxAbs: number): string {
   if (Number.isNaN(value) || maxAbs === 0) return 'transparent';
   const intensity = Math.min(Math.abs(value) / maxAbs, 1);
   const alpha = 0.2 + intensity * 0.55;
-  return value > 0 ? `rgba(0,212,170,${alpha.toFixed(2)})` : `rgba(239,68,68,${alpha.toFixed(2)})`;
+  return value > 0
+    ? alphaThemeColor('accentBlue', alpha.toFixed(2))
+    : alphaThemeColor('down', alpha.toFixed(2));
 }
 
 export function LeadLagTab() {
-  const { eventReturns, assetMeta, events, activeEvents } = useDashboard();
+  const { eventReturns, assetMeta, events, activeEvents, allLabels, allClasses } = useDashboard();
   const [selectedGroup, setSelectedGroup] = useState('Risk Barometer');
 
   const groupAssets = useMemo(() => {
-    const assets = CUSTOM_GROUPS[selectedGroup];
-    if (!assets) return [];
+    const assets = getGroupLabels(selectedGroup, allLabels, assetMeta);
     return assets.filter((asset) => eventReturns[asset] && Object.keys(eventReturns[asset]).length > 0);
-  }, [selectedGroup, eventReturns]);
+  }, [selectedGroup, eventReturns, allLabels, assetMeta]);
 
   const activeEventNames = useMemo(
     () => events.filter((event) => activeEvents.has(event.name)).map((event) => event.name),
@@ -102,8 +105,8 @@ export function LeadLagTab() {
   }, [activeEventNames, eventReturns, groupAssets]);
 
   const groupOptions = useMemo(
-    () => Object.keys(CUSTOM_GROUPS).sort().map((groupName) => ({ value: groupName, label: groupName })),
-    [],
+    () => groupOptionsFromData(allClasses).filter((option) => option.value !== ALL_ASSETS_OPTION),
+    [allClasses],
   );
 
   return (
@@ -124,9 +127,9 @@ export function LeadLagTab() {
         ) : (
           <>
             <div className="grid grid-cols-3 gap-2">
-              <StatBox label="Avg Lag" value={stats.avgLag.toFixed(2)} sub="POI steps" color={Math.abs(stats.avgLag) > 0.5 ? '#00d4aa' : '#71717a'} />
-              <StatBox label="Strong Leads" value={stats.strongLeads} sub=">= +0.7" color="#00d4aa" />
-              <StatBox label="Strong Lags" value={stats.strongLags} sub="<= -0.7" color="#ef4444" />
+              <StatBox label="Avg Lag" value={stats.avgLag.toFixed(2)} sub="POI steps" color={Math.abs(stats.avgLag) > 0.5 ? CHART_THEME.accentBlue : CHART_THEME.textMuted} />
+              <StatBox label="Strong Leads" value={stats.strongLeads} sub=">= +0.7" color={CHART_THEME.accentBlue} />
+              <StatBox label="Strong Lags" value={stats.strongLags} sub="<= -0.7" color={CHART_THEME.down} />
             </div>
 
             <div className="overflow-x-auto border border-border/40 rounded-sm">
@@ -156,9 +159,9 @@ export function LeadLagTab() {
                         const textColor = assetA === assetB
                           ? 'text-text-dim'
                           : value > 0.3
-                            ? 'text-[#00d4aa]'
+                            ? 'text-accent-blue'
                             : value < -0.3
-                              ? 'text-[#ef4444]'
+                              ? 'text-down'
                               : 'text-text-muted';
                         return (
                           <td
@@ -185,13 +188,13 @@ export function LeadLagTab() {
             <div className="space-y-2 text-2xs text-text-dim">
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'rgba(0,212,170,0.6)' }} />
+                  <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: alphaThemeColor('accentBlue', '0.6') }} />
                   <span>Positive: row asset tends to lead column asset</span>
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'rgba(239,68,68,0.6)' }} />
+                  <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: alphaThemeColor('down', '0.6') }} />
                   <span>Negative: row asset tends to lag column asset</span>
                 </span>
               </div>

@@ -1,10 +1,11 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, StatBox } from '@/components/ui/ChartCard';
 import { runAnalogueMatch } from '@/engine/similarity';
-import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveScoringReturns } from '@/engine/live';
+import { getEffectiveScoringDate, getEffectiveScoringDay, getLiveDisplayDate, getLiveDisplayDay, getLiveScoringReturns } from '@/engine/live';
 import { nanMean } from '@/lib/math';
+import { CHART_THEME } from '@/config/theme';
 
 interface ReverseMatch {
   rank: number;
@@ -18,6 +19,8 @@ export function ReverseTab() {
   const scoringReturns = getLiveScoringReturns(live);
   const scoringDayN = scoringReturns ? getEffectiveScoringDay(live, similarityAssets) : 0;
   const scoringDate = scoringReturns ? getEffectiveScoringDate(live, similarityAssets) : null;
+  const displayDay = getLiveDisplayDay(live);
+  const displayDate = getLiveDisplayDate(live);
   const activeEventDefs = useMemo(
     () => events.filter((event) => activeEvents.has(event.name)),
     [activeEvents, events],
@@ -104,28 +107,24 @@ export function ReverseTab() {
           </div>
         </div>
 
-        <div className="text-2xs text-text-dim border border-border/40 bg-bg-cell/20 px-3 py-2">
-          Reverse lookup reuses the same quant-only path engine as analogue matching. Each score is based on the live return vector at the effective scoring day, using only assets with valid overlap for that specific event.
-        </div>
-
         <div className="grid grid-cols-3 gap-2">
           <StatBox
             label="Top Match"
             value={(stats.topScore * 100).toFixed(1)}
             sub={`${stats.topEvent ? stats.topEvent.substring(0, 15) : '--'}`}
-            color="#00d4aa"
+            color={CHART_THEME.accentTeal}
           />
           <StatBox
             label="Avg Match"
             value={(stats.avgScore * 100).toFixed(1)}
             sub="%"
-            color="#f59e0b"
+            color={CHART_THEME.accentAmber}
           />
           <StatBox
             label="Assets Shared"
             value={similarityAssets.length}
             sub="in comparison pool"
-            color="#71717a"
+            color={CHART_THEME.textMuted}
           />
         </div>
 
@@ -155,7 +154,7 @@ export function ReverseTab() {
                       className="h-full rounded-full transition-all duration-300"
                       style={{
                         width: `${barWidth}%`,
-                        backgroundColor: pct >= 75 ? '#00d4aa' : pct >= 50 ? '#f59e0b' : '#ef4444',
+                        backgroundColor: pct >= 75 ? CHART_THEME.accentTeal : pct >= 50 ? CHART_THEME.accentAmber : CHART_THEME.down,
                       }}
                     />
                   </div>
@@ -165,10 +164,11 @@ export function ReverseTab() {
           </div>
         )}
 
-        <div className="text-2xs text-text-dim border-t border-border/40 pt-3 space-y-1">
-          <p>Cosine similarity of the current return pattern at effective scoring day D+{scoringDayN}{scoringDate ? ` (${scoringDate})` : ''} against historical event returns.</p>
+        <BottomDescription className="space-y-1">
+          <p>Reverse lookup reuses the same quant-only path engine as analogue matching. Each score is based on the current live return pattern using only assets with valid overlap for that specific event.</p>
+          <p>Current live state shown in the dashboard: D+{displayDay}{displayDate ? ` (${displayDate})` : scoringDate ? ` (${scoringDate})` : ''}.</p>
           <p className="text-text-dim/70">Asset count in parentheses indicates how many assets had valid overlap for that event.</p>
-        </div>
+        </BottomDescription>
       </div>
     </ChartCard>
   );

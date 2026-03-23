@@ -2,29 +2,23 @@
 
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, SliderControl } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, SliderControl } from '@/components/ui/ChartCard';
+import { DiagnosticsStrip } from '@/components/ui/DiagnosticsStrip';
 import { anchorSeriesValue, displayLabel, isSparsePoiSeries, unitLabel } from '@/engine/returns';
+import { getLiveDisplayDay } from '@/engine/live';
 import { POIS, PRE_WINDOW_TD, POST_WINDOW_TD } from '@/config/engine';
+import { CHART_THEME } from '@/config/theme';
+import { alphaThemeColor, dayZeroMarkerStyle, getEventLineStyle, THEME_FONTS, themeDashPattern, themeStrokeWidth, segmentedControlStyle } from '@/theme/chart';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, ResponsiveContainer,
 } from 'recharts';
 
-const PALETTE = [
-  '#00e5ff', '#ff5252', '#69f0ae', '#b388ff', '#ffab40',
-  '#ff80ab', '#40c4ff', '#ccff90', '#ffd740', '#ea80fc',
-  '#84ffff', '#ff6e40', '#a7ffeb',
-];
 const DASHES: Array<string | undefined> = [
   undefined, undefined, undefined, undefined,
   '10 4', '10 4', '10 4', '10 4',
   '4 4', '4 4', '4 4', '4 4', '10 3 3 3',
 ];
-
-const AXIS_TICK = '#8a8a9a';
-const AXIS_LINE = '#2a2a3a';
-const GRID = '#1c1c2c';
-const ZERO = '#3a3a4e';
 
 export function OverlayTab() {
   const { eventReturns, assetMeta, allClasses, events, activeEvents, live } = useDashboard();
@@ -88,14 +82,14 @@ export function OverlayTab() {
 
       if (live.returns?.[selectedAsset]) {
         const series = live.returns[selectedAsset];
-        const dayN = live.dayN ?? 0;
-        if (offset >= 0 && offset <= dayN) {
-          point.__live__ = anchorSeriesValue(
-            series,
-            offset,
-            anchorMode === 'stepin' ? 'stepin' : 'day0',
-            stepDay,
-          );
+        const liveValue = anchorSeriesValue(
+          series,
+          offset,
+          anchorMode === 'stepin' ? 'stepin' : 'day0',
+          stepDay,
+        );
+        if (liveValue !== null) {
+          point.__live__ = liveValue;
         }
       }
 
@@ -151,7 +145,8 @@ export function OverlayTab() {
   const meta = assetMeta[selectedAsset];
   const unit = unitLabel(meta);
   const title = displayLabel(meta, selectedAsset);
-  const liveDay = live.dayN;
+  const liveDay = live.returns?.[selectedAsset] ? getLiveDisplayDay(live) : null;
+  const dayZeroStyle = dayZeroMarkerStyle();
 
   const customTooltip = useCallback(({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
@@ -162,17 +157,17 @@ export function OverlayTab() {
 
     return (
       <div style={{
-        background: 'rgba(12,12,18,0.97)',
-        border: '1px solid #2a2a3a',
+        background: CHART_THEME.tooltipBg,
+        border: `1px solid ${CHART_THEME.gridBright}`,
         borderRadius: 3,
         fontSize: 11,
-        fontFamily: 'JetBrains Mono',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+        fontFamily: THEME_FONTS.mono,
+        boxShadow: `0 8px 32px ${alphaThemeColor('shadow', '0.18')}`,
         padding: '8px 12px',
         maxHeight: 420,
         overflowY: 'auto',
       }}>
-        <div style={{ color: AXIS_TICK, fontWeight: 600, marginBottom: 6, borderBottom: '1px solid #1c1c2c', paddingBottom: 4 }}>
+        <div style={{ color: CHART_THEME.textMuted, fontWeight: 600, marginBottom: 6, borderBottom: `1px solid ${CHART_THEME.grid}`, paddingBottom: 4 }}>
           Day {Number(label) >= 0 ? '+' : ''}{label}
         </div>
         {rows.map((entry: any) => {
@@ -187,13 +182,13 @@ export function OverlayTab() {
                   borderRadius: '50%',
                   backgroundColor: entry.color,
                   flexShrink: 0,
-                  boxShadow: `0 0 4px ${entry.color}60`,
+                  boxShadow: `0 0 4px ${alphaThemeColor('shadow', '0.18')}`,
                 }}
               />
-              <span style={{ color: '#8a8a9a', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
+              <span style={{ color: CHART_THEME.textMuted, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
                 {name}
               </span>
-              <span style={{ color: value >= 0 ? '#69f0ae' : '#ff5252', fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
+              <span style={{ color: value >= 0 ? CHART_THEME.up : CHART_THEME.down, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
                 {value >= 0 ? '+' : ''}{value.toFixed(2)} {unit}
               </span>
             </div>
@@ -220,11 +215,8 @@ export function OverlayTab() {
               <button
                 key={mode}
                 onClick={() => setAnchorMode(mode)}
-                className={`px-2.5 py-1 text-[10px] tracking-wide uppercase border-y border-r first:border-l first:rounded-l-sm last:rounded-r-sm transition-all ${
-                  anchorMode === mode
-                    ? 'bg-[#00e5ff]/10 text-[#00e5ff] border-[#00e5ff]/30'
-                    : 'bg-transparent text-[#6a6a7a] border-[#2a2a3a] hover:text-[#9a9aaa]'
-                }`}
+                className="px-2.5 py-1 text-[10px] font-mono tracking-wide uppercase border-y border-r first:border-l first:rounded-l-sm last:rounded-r-sm transition-all"
+                style={segmentedControlStyle(anchorMode === mode)}
               >
                 {mode === 'day0' ? 'Day 0' : 'Step-In'}
               </button>
@@ -236,90 +228,95 @@ export function OverlayTab() {
         </div>
       }
     >
-      <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-        Day 0 mode rebases every series at the event anchor. Step-In mode rebases at the chosen entry day so you can compare paths from a delayed entry. Sparse historical events only plot at POI checkpoints, and the orange live line uses the currently loaded live event on the same rebasing rule.
-      </div>
-
+      <DiagnosticsStrip
+        live={live}
+        labels={[selectedAsset]}
+        scoringMode="live-sim"
+        extra={<span>Overlay asset: {title}</span>}
+      />
       <div className="flex">
         <div className="flex-1 h-[560px] pt-1 pr-1 pb-2 pl-1">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 28, right: 12, bottom: 22, left: 8 }}>
-              <CartesianGrid stroke={GRID} strokeDasharray="2 8" />
+              <CartesianGrid stroke={CHART_THEME.grid} strokeDasharray="2 8" vertical={false} />
               <XAxis
                 dataKey="offset"
-                stroke={AXIS_LINE}
-                tick={{ fontSize: 10, fill: AXIS_TICK, fontFamily: 'JetBrains Mono' }}
+                stroke={CHART_THEME.axisLine}
+                tick={{ fontSize: 10, fill: CHART_THEME.textMuted, fontFamily: THEME_FONTS.mono }}
                 ticks={POIS.map((poi) => poi.offset)}
                 tickFormatter={(value) => POIS.find((poi) => poi.offset === value)?.label || ''}
-                axisLine={{ stroke: AXIS_LINE }}
-                tickLine={{ stroke: AXIS_LINE }}
+                axisLine={{ stroke: CHART_THEME.axisLine }}
+                tickLine={{ stroke: CHART_THEME.axisLine }}
               />
               <YAxis
                 domain={yDomain}
-                stroke={AXIS_LINE}
-                tick={{ fontSize: 10, fill: AXIS_TICK, fontFamily: 'JetBrains Mono' }}
+                stroke={CHART_THEME.axisLine}
+                tick={{ fontSize: 10, fill: CHART_THEME.textMuted, fontFamily: THEME_FONTS.mono }}
                 tickFormatter={(value: number) => `${value > 0 ? '+' : ''}${value.toFixed(0)}`}
-                axisLine={{ stroke: AXIS_LINE }}
-                tickLine={{ stroke: AXIS_LINE }}
+                axisLine={{ stroke: CHART_THEME.axisLine }}
+                tickLine={{ stroke: CHART_THEME.axisLine }}
                 width={48}
               />
               <Tooltip
                 content={customTooltip}
                 isAnimationActive={false}
-                cursor={{ stroke: '#3a3a4a', strokeWidth: 1, strokeDasharray: '4 4' }}
+                cursor={{ stroke: CHART_THEME.zero, strokeWidth: 1, strokeDasharray: '4 4' }}
                 wrapperStyle={{ zIndex: 100 }}
               />
 
-              <ReferenceLine y={0} stroke={ZERO} strokeWidth={1} />
+              <ReferenceLine y={0} stroke={CHART_THEME.zero} strokeWidth={1} />
               <ReferenceLine
                 x={0}
-                stroke="#00e5ff"
-                strokeDasharray="4 4"
-                strokeWidth={1.2}
-                label={{ value: 'D+0', position: 'insideTopRight', fill: '#00e5ff', fontSize: 10, fontWeight: 700, offset: 8 }}
+                stroke={dayZeroStyle.stroke}
+                strokeDasharray={dayZeroStyle.strokeDasharray}
+                strokeWidth={dayZeroStyle.strokeWidth}
+                label={{ value: 'D+0', position: 'insideTopRight', fill: dayZeroStyle.stroke, fontSize: 10, fontWeight: 700, offset: 8 }}
               />
               {POIS.filter((poi) => poi.offset !== 0).map((poi) => (
-                <ReferenceLine key={poi.label} x={poi.offset} stroke={GRID} strokeDasharray="2 6" />
+                <ReferenceLine key={poi.label} x={poi.offset} stroke={CHART_THEME.grid} strokeDasharray="2 6" />
               ))}
               {anchorMode === 'stepin' && stepDay !== 0 && (
                 <ReferenceLine
                   x={stepDay}
-                  stroke="#ffab40"
-                  strokeDasharray="6 3"
-                  strokeWidth={1}
-                  label={{ value: `Step D+${stepDay}`, position: 'insideTopRight', fill: '#ffab40', fontSize: 9, offset: 8 }}
+                  stroke={CHART_THEME.live}
+                  strokeDasharray={themeDashPattern('6 3')}
+                  strokeWidth={themeStrokeWidth(1)}
+                  label={{ value: `Step D+${stepDay}`, position: 'insideTopRight', fill: CHART_THEME.live, fontSize: 9, offset: 8 }}
                 />
               )}
               {liveDay !== null && (
                 <ReferenceLine
                   x={liveDay}
-                  stroke="#ffab40"
-                  strokeDasharray="3 3"
-                  strokeWidth={1.5}
-                  label={{ value: `D+${liveDay}`, position: 'insideTopRight', fill: '#ffab40', fontSize: 10, fontWeight: 700, offset: 8 }}
+                  stroke={CHART_THEME.live}
+                  strokeDasharray={themeDashPattern('3 3')}
+                  strokeWidth={themeStrokeWidth(1.5)}
+                  label={{ value: `D+${liveDay}`, position: 'insideTopRight', fill: CHART_THEME.live, fontSize: 10, fontWeight: 700, offset: 8 }}
                 />
               )}
 
-              {activeEventNames.map((eventName, index) => (
+              {activeEventNames.map((eventName, index) => {
+                const lineStyle = getEventLineStyle(eventName, index, sparseEvents.has(eventName) ? 1.2 : 1.6, DASHES[index % DASHES.length]);
+                return (
                 <Line
                   key={eventName}
                   dataKey={eventName}
-                  stroke={PALETTE[index % PALETTE.length]}
-                  strokeWidth={sparseEvents.has(eventName) ? 1.2 : 1.6}
-                  dot={sparseEvents.has(eventName) ? { r: 3, fill: PALETTE[index % PALETTE.length], strokeWidth: 0 } : false}
+                  stroke={lineStyle.color}
+                  strokeWidth={lineStyle.strokeWidth}
+                  dot={sparseEvents.has(eventName) ? { r: 3, fill: lineStyle.color, strokeWidth: 0 } : false}
                   connectNulls={false}
-                  strokeDasharray={DASHES[index % DASHES.length]}
+                  strokeDasharray={lineStyle.strokeDasharray}
                   hide={hiddenLines.has(eventName)}
                   isAnimationActive={false}
                 />
-              ))}
+                );
+              })}
 
               {live.returns?.[selectedAsset] && (
                 <Line
                   dataKey="__live__"
-                  stroke="#ffab40"
-                  strokeWidth={2.5}
-                  dot={{ r: 2, fill: '#ffab40', strokeWidth: 0 }}
+                  stroke={CHART_THEME.live}
+                  strokeWidth={themeStrokeWidth(2.5)}
+                  dot={{ r: 2, fill: CHART_THEME.live, strokeWidth: 0 }}
                   connectNulls={false}
                   hide={hiddenLines.has('__live__')}
                   isAnimationActive={false}
@@ -329,13 +326,13 @@ export function OverlayTab() {
           </ResponsiveContainer>
         </div>
 
-        <div className="w-[190px] shrink-0 border-l border-[#1c1c2c] overflow-y-auto max-h-[560px] py-2 px-1.5" style={{ background: 'linear-gradient(180deg, #0d0d14 0%, #09090e 100%)' }}>
-          <div className="text-[9px] text-[#5a5a6a] mb-2 px-1.5 uppercase tracking-widest">
+        <div className="w-[190px] shrink-0 border-l border-border/60 overflow-y-auto max-h-[560px] py-2 px-1.5 bg-bg-cell/30">
+          <div className="text-[9px] text-text-dim mb-2 px-1.5 uppercase tracking-widest">
             Click: toggle | Dbl: isolate
           </div>
           {activeEventNames.map((eventName, index) => {
             const hidden = hiddenLines.has(eventName);
-            const color = PALETTE[index % PALETTE.length];
+            const color = getEventLineStyle(eventName, index).color;
             return (
               <button
                 key={eventName}
@@ -343,8 +340,8 @@ export function OverlayTab() {
                 className="flex items-center gap-1.5 w-full text-left px-1.5 py-[3px] rounded-sm transition-all group"
                 style={{ opacity: hidden ? 0.2 : 1 }}
               >
-                <span className="w-3 h-[2px] shrink-0 rounded-full transition-all group-hover:h-[3px]" style={{ backgroundColor: color, boxShadow: hidden ? 'none' : `0 0 6px ${color}40` }} />
-                <span className={`text-[10px] truncate transition-colors ${hidden ? 'text-[#3a3a4a]' : 'text-[#9a9aaa] group-hover:text-[#d0d0e0]'}`}>
+                <span className="w-3 h-[2px] shrink-0 rounded-full transition-all group-hover:h-[3px]" style={{ backgroundColor: color, boxShadow: hidden ? 'none' : `0 0 6px ${alphaThemeColor('shadow', '0.16')}` }} />
+                <span className={`text-[10px] truncate transition-colors ${hidden ? 'text-text-dim' : 'text-text-secondary group-hover:text-text-primary'}`}>
                   {eventName}
                 </span>
               </button>
@@ -352,19 +349,22 @@ export function OverlayTab() {
           })}
           {live.returns?.[selectedAsset] && (
             <>
-              <div className="border-t border-[#1c1c2c] my-1.5 mx-1" />
+              <div className="border-t border-border/50 my-1.5 mx-1" />
               <button
                 onClick={() => handleLegendClick('__live__')}
                 className="flex items-center gap-1.5 w-full text-left px-1.5 py-[3px] rounded-sm transition-all group"
                 style={{ opacity: hiddenLines.has('__live__') ? 0.2 : 1 }}
               >
-                <span className="w-3 h-[2px] shrink-0 rounded-full" style={{ backgroundColor: '#ffab40', boxShadow: '0 0 8px #ffab4060' }} />
-                <span className="text-[10px] text-[#ffab40] truncate font-medium">Live: {live.name}</span>
+                <span className="w-3 h-[2px] shrink-0 rounded-full" style={{ backgroundColor: CHART_THEME.live, boxShadow: `0 0 8px ${alphaThemeColor('live', '0.35')}` }} />
+                <span className="text-[10px] text-live truncate font-medium">Live: {live.name}</span>
               </button>
             </>
           )}
         </div>
       </div>
+      <BottomDescription>
+        Day 0 mode rebases every series at the event anchor. Step-In mode rebases at the chosen entry day so you can compare paths from a delayed entry. Sparse historical events only plot at POI checkpoints, and the live line now extends through the available pre-event window as well as the post-event path.
+      </BottomDescription>
     </ChartCard>
   );
 }

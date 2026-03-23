@@ -1,3 +1,5 @@
+import { CHART_PALETTE } from '@/config/theme';
+
 // Hardcoded from notebook section 1.2: event tags and macro context.
 // Users can add events via the UI; these are the built-in defaults.
 
@@ -70,15 +72,4 @@ export const MACRO_CONTEXT: Record<string, MacroContext> = {
   '2023 Red Sea Crisis': { trigger: 73, cpi: 'mid', fed: 'hold' },
 };
 
-export const EVENT_COLORS = [
-  '#58a6ff', '#f78166', '#3fb950', '#d2a8ff', '#ffa657',
-  '#ff7b72', '#79c0ff', '#56d364', '#e3b341', '#bc8cff',
-  '#ff9bce', '#89ddff', '#a5d6ff',
-];
-
-export const EVENT_DASHES = [
-  'solid', 'solid', 'solid', 'solid',
-  'dashed', 'dashed', 'dashed', 'dashed',
-  'dotted', 'dotted', 'dotted', 'dotted',
-  'dashdot',
-];
+export const EVENT_COLORS = CHART_PALETTE;

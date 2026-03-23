@@ -2,21 +2,22 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select } from '@/components/ui/ChartCard';
 import { anchorSeriesValue, displayLabel, unitLabel, eventDateMap, isAssetAvailableForEvent } from '@/engine/returns';
 import { POIS } from '@/config/engine';
 import { CHART_THEME } from '@/config/theme';
+import { themedHeatColor } from '@/theme/chart';
+import { getLiveDisplayDay } from '@/engine/live';
 
 function heatColor(value: number, maxAbs: number, isRates: boolean): string {
   if (isNaN(value)) return CHART_THEME.bgCell;
-  const intensity = Math.min(Math.abs(value) / (maxAbs + 1e-9), 1);
-  const alpha = 0.15 + intensity * 0.55;
-  const isGood = isRates ? value < 0 : value > 0;
-  return isGood ? `rgba(34,197,94,${alpha.toFixed(2)})` : `rgba(239,68,68,${alpha.toFixed(2)})`;
+  return themedHeatColor(value, maxAbs, !isRates);
 }
 
 export function HeatmapTab() {
   const { eventReturns, assetMeta, allClasses, events, activeEvents, live, availability } = useDashboard();
+  const liveDisplayDay = getLiveDisplayDay(live);
+  const hasLiveSeries = !!live.returns && Object.keys(live.returns).length > 0;
 
   const [selectedClass, setSelectedClass] = useState('Oil & Energy');
   const [selectedAsset, setSelectedAsset] = useState('Brent Futures');
@@ -61,13 +62,9 @@ export function HeatmapTab() {
       rows.push(row);
     }
 
-    if (live.returns?.[selectedAsset] && live.dayN !== null) {
+    if (live.returns?.[selectedAsset] && hasLiveSeries) {
       const row: Array<number | null> = [];
       for (const poi of POIS) {
-        if (poi.offset < 0 || poi.offset > live.dayN) {
-          row.push(null);
-          continue;
-        }
         const value = anchorSeriesValue(live.returns[selectedAsset], poi.offset, 'day0');
         const rounded = value === null ? null : Math.round(value * 10) / 10;
         row.push(rounded);
@@ -77,7 +74,7 @@ export function HeatmapTab() {
     }
 
     return { matrix: rows, maxAbs: maxValue || 5 };
-  }, [activeEventNames, availability, eventDates, eventReturns, live.dayN, live.returns, selectedAsset]);
+  }, [activeEventNames, availability, eventDates, eventReturns, hasLiveSeries, live.returns, selectedAsset]);
 
   const meta = assetMeta[selectedAsset];
   const isRates = meta?.is_rates_bp || false;
@@ -85,7 +82,7 @@ export function HeatmapTab() {
   const title = displayLabel(meta, selectedAsset);
   const rowLabels = [
     ...activeEventNames,
-    ...(live.returns?.[selectedAsset] && live.dayN !== null ? [`Live: ${live.name} (D+${live.dayN})`] : []),
+    ...(live.returns?.[selectedAsset] && hasLiveSeries ? [`Live: ${live.name} (D+${liveDisplayDay})`] : []),
   ];
 
   return (
@@ -103,10 +100,6 @@ export function HeatmapTab() {
         </div>
       }
     >
-      <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-        Each cell shows the rebased return at that POI for the selected asset and event. The live row, when present, uses the currently loaded live event on the same Day 0 basis. Blank cells mean the asset was unavailable or had insufficient coverage for that event and horizon, not a zero return.
-      </div>
-
       <div className="overflow-x-auto p-4">
         <table className="w-full border-collapse text-xs font-mono">
           <thead>
@@ -149,6 +142,9 @@ export function HeatmapTab() {
           </tbody>
         </table>
       </div>
+      <BottomDescription>
+        Each cell shows the rebased return at that POI for the selected asset and event. The live row, when present, uses the currently loaded live event on the same Day 0 basis. Blank cells mean the asset was unavailable or had insufficient coverage for that event and horizon, not a zero return.
+      </BottomDescription>
     </ChartCard>
   );
 }

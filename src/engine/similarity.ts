@@ -6,11 +6,15 @@ import { poiRet, EventReturns } from './returns';
 export interface AnalogueScore {
   event: string;
   composite: number;
+  rawComposite: number;
   quant: number;
   quant_pt: number;
   tag: number;
   macro: number;
   sharedAssetCount: number;
+  coverageRatio: number;
+  sparsePenalty: number;
+  confidenceLabel: 'high' | 'medium' | 'thin';
 }
 
 interface RunAnalogueMatchOptions {
@@ -19,6 +23,35 @@ interface RunAnalogueMatchOptions {
   events?: EventDef[];
   eventTags?: Record<string, Set<string>>;
   macroContext?: Record<string, MacroContext>;
+}
+
+const MIN_SHARED_ASSETS = 3;
+const NORMAL_COVERAGE_RATIO = 0.5;
+
+export function coveragePenalty(sharedAssetCount: number, requestedAssetCount: number): {
+  coverageRatio: number;
+  sparsePenalty: number;
+  confidenceLabel: 'high' | 'medium' | 'thin';
+} {
+  if (requestedAssetCount <= 0) {
+    return { coverageRatio: 0, sparsePenalty: 0.35, confidenceLabel: 'thin' };
+  }
+
+  const coverageRatio = sharedAssetCount / requestedAssetCount;
+  const ratioPenalty = Math.max(0.35, Math.min(1, coverageRatio / NORMAL_COVERAGE_RATIO));
+  const floorPenalty = sharedAssetCount >= MIN_SHARED_ASSETS
+    ? 1
+    : Math.max(0.25, sharedAssetCount / MIN_SHARED_ASSETS);
+  const sparsePenalty = Math.min(1, ratioPenalty * floorPenalty);
+
+  let confidenceLabel: 'high' | 'medium' | 'thin' = 'thin';
+  if (sharedAssetCount >= Math.max(MIN_SHARED_ASSETS + 2, Math.ceil(requestedAssetCount * 0.75))) {
+    confidenceLabel = 'high';
+  } else if (sharedAssetCount >= MIN_SHARED_ASSETS && coverageRatio >= 0.4) {
+    confidenceLabel = 'medium';
+  }
+
+  return { coverageRatio, sparsePenalty, confidenceLabel };
 }
 
 export function tagSim(a: Set<string>, b: Set<string>): number {
@@ -155,19 +188,25 @@ export function runAnalogueMatch(
       triggerZScores[eventName] ?? null,
     );
 
-    const composite =
+    const rawComposite =
       normalizedWeights.quant * quantPath +
       normalizedWeights.tag * tag +
       normalizedWeights.macro * macro;
+    const coverage = coveragePenalty(sharedAssets.length, livePool.length);
+    const composite = rawComposite * coverage.sparsePenalty;
 
     scores.push({
       event: eventName,
       composite,
+      rawComposite,
       quant: quantPath,
       quant_pt: quantPoint,
       tag,
       macro,
       sharedAssetCount: sharedAssets.length,
+      coverageRatio: coverage.coverageRatio,
+      sparsePenalty: coverage.sparsePenalty,
+      confidenceLabel: coverage.confidenceLabel,
     });
   }
 

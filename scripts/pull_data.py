@@ -431,15 +431,14 @@ def _compute_live_asset_series(label, requested_day0, daily_history, meta):
     scoring_levels = {}
     observed_dates = []
 
-    for i in range(idx0, len(points)):
+    window_start = max(0, idx0 - PRE_WINDOW_TD - 5)
+
+    for i in range(window_start, len(points)):
         dt, val = points[i]
         if np.isnan(val):
             continue
         cal_off = int((pd.Timestamp(dt) - pd.Timestamp(d0)).days)
-        td_off = i - idx0
-        observed_dates.append(dt)
         raw_levels[cal_off] = round(val, 6)
-        scoring_levels[td_off] = round(val, 6)
         if meta.get("is_rates_bp"):
             move = (val - float(denom)) * 100
         else:
@@ -447,7 +446,11 @@ def _compute_live_asset_series(label, requested_day0, daily_history, meta):
             if not meta.get("invert", True):
                 move = -move
         raw_returns[cal_off] = round(float(move), 4)
-        scoring_returns[td_off] = round(float(move), 4)
+        if i >= idx0:
+            td_off = i - idx0
+            observed_dates.append(dt)
+            scoring_levels[td_off] = round(val, 6)
+            scoring_returns[td_off] = round(float(move), 4)
 
     return {
         "raw_returns": raw_returns,
@@ -466,13 +469,15 @@ def _fill_calendar_series(raw_returns, raw_levels, day0_price, target_offset, ma
     if not offsets or target_offset < 0:
         return {}, {}
 
+    start_offset = max(offsets[0], -PRE_WINDOW_TD)
     last_observed_offset = offsets[-1]
     fill_limit = min(target_offset, last_observed_offset + max_carry_days)
     out_returns, out_levels = {}, {}
-    last_return = 0.0
-    last_level = day0_price
+    first_observed_offset = next((offset for offset in offsets if offset >= start_offset), offsets[0])
+    last_return = raw_returns.get(first_observed_offset, 0.0)
+    last_level = raw_levels.get(first_observed_offset, day0_price)
 
-    for offset in range(fill_limit + 1):
+    for offset in range(start_offset, fill_limit + 1):
         if offset in raw_returns:
             last_return = raw_returns[offset]
         if offset in raw_levels:

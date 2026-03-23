@@ -6,13 +6,15 @@ import {
   BarChart3, Activity, Search, Shield, Wrench,
   ChevronDown
 } from 'lucide-react';
+import { GROUP_ACCENTS } from '@/config/theme';
+import { alphaThemeColor } from '@/theme/chart';
 
 interface TabDef { id: string; label: string }
 interface GroupDef { id: TabGroup; label: string; icon: React.ReactNode; accent: string; tabs: TabDef[] }
 
 const GROUPS: GroupDef[] = [
   {
-    id: 'historical', label: 'Historical', accent: '#58a6ff',
+    id: 'historical', label: 'Historical', accent: GROUP_ACCENTS.historical,
     icon: <BarChart3 size={12} />,
     tabs: [
       { id: 'events', label: 'Events' },
@@ -27,7 +29,7 @@ const GROUPS: GroupDef[] = [
     ],
   },
   {
-    id: 'live', label: 'Live Engine', accent: '#f59e0b',
+    id: 'live', label: 'Live Engine', accent: GROUP_ACCENTS.live,
     icon: <Activity size={12} />,
     tabs: [
       { id: 'l1-config', label: 'Config' },
@@ -38,7 +40,7 @@ const GROUPS: GroupDef[] = [
     ],
   },
   {
-    id: 'analysis', label: 'Analysis', accent: '#a78bfa',
+    id: 'analysis', label: 'Analysis', accent: GROUP_ACCENTS.analysis,
     icon: <Search size={12} />,
     tabs: [
       { id: 'l6-screener', label: 'Screener' },
@@ -49,7 +51,7 @@ const GROUPS: GroupDef[] = [
     ],
   },
   {
-    id: 'risk', label: 'Risk', accent: '#ef4444',
+    id: 'risk', label: 'Risk', accent: GROUP_ACCENTS.risk,
     icon: <Shield size={12} />,
     tabs: [
       { id: 'l11-stress', label: 'Stress Test' },
@@ -60,7 +62,7 @@ const GROUPS: GroupDef[] = [
     ],
   },
   {
-    id: 'tools', label: 'Tools', accent: '#22c55e',
+    id: 'tools', label: 'Tools', accent: GROUP_ACCENTS.tools,
     icon: <Wrench size={12} />,
     tabs: [
       { id: 'correlation', label: 'Correlation' },
@@ -104,10 +106,10 @@ export function TabBar() {
 
   const currentGroup = GROUPS.find(g => g.id === activeGroup);
   const currentTabs = currentGroup?.tabs || [];
-  const accentColor = currentGroup?.accent || '#00d4aa';
+  const accentColor = currentGroup?.accent || GROUP_ACCENTS.live;
 
   return (
-    <div className="border-b border-border/50 bg-bg-panel/80 backdrop-blur-sm shrink-0">
+    <div className="border-b border-border/50 bg-bg-chrome/90 backdrop-blur-sm shrink-0">
       {/* Group bar */}
       <div className="flex items-center px-1" ref={dropdownRef}>
         {GROUPS.map(group => {
@@ -124,7 +126,7 @@ export function TabBar() {
                     setOpenDropdown(null);
                   }
                 }}
-                className={`flex items-center gap-1.5 px-3 py-2 text-2xs font-medium transition-all duration-200 relative
+                className={`flex items-center gap-1.5 px-3 py-2 text-2xs font-sans font-medium transition-all duration-200 relative
                   ${isActive
                     ? 'text-text-primary'
                     : 'text-text-dim hover:text-text-muted'
@@ -149,7 +151,7 @@ export function TabBar() {
                         setActiveTab(tab.id);
                         setOpenDropdown(null);
                       }}
-                      className={`block w-full text-left px-3 py-1.5 text-2xs transition-colors
+                    className={`block w-full text-left px-3 py-1.5 text-2xs font-sans transition-colors
                         ${activeTab === tab.id && activeGroup === group.id
                           ? 'bg-bg-hover text-text-primary'
                           : 'text-text-muted hover:text-text-secondary hover:bg-bg-hover/50'
@@ -166,32 +168,33 @@ export function TabBar() {
 
         {/* Horizon control */}
         <div className="ml-auto flex items-center gap-1.5 pr-2">
-          <span className="text-3xs text-text-dim uppercase tracking-wider">H</span>
+          <span className="text-3xs text-text-dim uppercase tracking-wider font-sans">H</span>
           <input
             type="number"
             value={horizon}
             onChange={(e) => setHorizon(Math.max(1, Math.min(252, parseInt(e.target.value) || 21)))}
-            className="w-10 bg-bg-cell/80 border border-border/60 text-2xs text-center text-text-secondary
-                       py-0.5 rounded-sm focus:outline-none focus:border-accent-teal/40 transition-colors"
+            className="w-10 bg-bg-cell/80 border border-border/60 text-2xs text-center text-text-secondary font-mono
+                       py-0.5 rounded-sm focus:outline-none transition-colors"
+            style={{ boxShadow: 'none' }}
             min={1} max={252}
             aria-label="Forecast horizon in trading days"
           />
-          <span className="text-3xs text-text-dim">d</span>
+          <span className="text-3xs text-text-dim font-sans">d</span>
         </div>
       </div>
 
       {/* Sub-tab bar */}
-      <div className="flex items-center gap-0 px-1 bg-bg-primary/40 overflow-x-auto scrollbar-none">
+      <div className="flex items-center gap-0 px-1 bg-bg-primary/30 overflow-x-auto scrollbar-none">
         {currentTabs.map((tab, i) => {
           const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`relative px-3 py-1.5 text-2xs font-medium transition-all duration-150 whitespace-nowrap
+              className={`relative px-3 py-1.5 text-2xs font-sans transition-all duration-150 whitespace-nowrap
                 ${isActive
-                  ? 'text-text-primary'
-                  : 'text-text-dim hover:text-text-muted'
+                  ? 'text-text-primary font-medium'
+                  : 'text-text-dim hover:text-text-muted font-normal'
                 }`}
             >
               {tab.label}

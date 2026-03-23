@@ -1,26 +1,37 @@
-// Chart theme constants matching globals.css
+import { CHART_SERIES_PALETTE, THEME_COLORS } from '@/theme/chart';
 
 export const CHART_THEME = {
-  bg: '#09090b',
-  bgPanel: '#111113',
-  bgCell: '#18181b',
-  bgHover: '#1e1e22',
-  grid: '#1e1e22',
-  gridBright: '#2a2a2e',
-  text: '#e4e4e7',
-  textSecondary: '#a1a1aa',
-  textMuted: '#71717a',
-  textDim: '#52525b',
-  accentTeal: '#00d4aa',
-  accentAmber: '#f59e0b',
-  zero: '#3b82f6',
-  up: '#22c55e',
-  down: '#ef4444',
-  live: '#f59e0b',
+  bg: THEME_COLORS.bgPrimary,
+  bgChrome: THEME_COLORS.bgChrome,
+  bgPanel: THEME_COLORS.bgPanel,
+  bgCell: THEME_COLORS.bgCell,
+  bgHover: THEME_COLORS.bgHover,
+  grid: THEME_COLORS.grid,
+  gridBright: THEME_COLORS.borderBright,
+  text: THEME_COLORS.textPrimary,
+  textPrimary: THEME_COLORS.textPrimary,
+  textSecondary: THEME_COLORS.textSecondary,
+  textMuted: THEME_COLORS.textMuted,
+  textDim: THEME_COLORS.textDim,
+  accentTeal: THEME_COLORS.accentTeal,
+  accentAmber: THEME_COLORS.accentAmber,
+  accentBlue: THEME_COLORS.accentBlue,
+  accentPurple: THEME_COLORS.accentPurple,
+  uiAccent: THEME_COLORS.uiAccent,
+  axisLine: THEME_COLORS.axisLine,
+  zero: THEME_COLORS.zero,
+  up: THEME_COLORS.up,
+  down: THEME_COLORS.down,
+  live: THEME_COLORS.live,
+  tooltipBg: THEME_COLORS.tooltipBg,
 } as const;
 
-export const CHART_PALETTE = [
-  '#58a6ff', '#f78166', '#3fb950', '#d2a8ff', '#ffa657',
-  '#ff7b72', '#79c0ff', '#56d364', '#e3b341', '#bc8cff',
-  '#ff9bce', '#89ddff', '#a5d6ff',
-];
+export const CHART_PALETTE = CHART_SERIES_PALETTE;
+
+export const GROUP_ACCENTS = {
+  historical: THEME_COLORS.accentBlue,
+  live: THEME_COLORS.live,
+  analysis: THEME_COLORS.accentPurple,
+  risk: THEME_COLORS.down,
+  tools: THEME_COLORS.up,
+} as const;

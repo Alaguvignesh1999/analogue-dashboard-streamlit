@@ -2,18 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { useDashboard } from '@/store/dashboard';
-import { ChartCard, Select, SliderControl } from '@/components/ui/ChartCard';
+import { BottomDescription, ChartCard, Select, SliderControl } from '@/components/ui/ChartCard';
 import { displayLabel, poiRet } from '@/engine/returns';
 import { CUSTOM_GROUPS } from '@/config/assets';
 import { corrcoef } from '@/lib/math';
+import { themedHeatColor } from '@/theme/chart';
 
 function corrColor(value: number): string {
-  if (Number.isNaN(value)) return 'transparent';
-  const abs = Math.min(Math.abs(value), 1);
-  const alpha = 0.2 + abs * 0.55;
-  return value >= 0
-    ? `rgba(34, 197, 94, ${alpha.toFixed(2)})`
-    : `rgba(239, 68, 68, ${alpha.toFixed(2)})`;
+  return themedHeatColor(value, 1, true);
 }
 
 interface CorrelationCell {
@@ -85,10 +81,6 @@ export function CorrelationTab() {
         subtitle={`${labels.length} assets | ${activeEventNames.length} events | ${validCellCount} valid pairwise cells`}
         controls={<Select label="Group" value={group} onChange={setGroup} options={groupOptions} />}
       >
-        <div className="px-4 py-3 text-2xs text-text-dim border-b border-border/40 bg-bg-cell/20">
-          Correlations are built only from overlapping valid historical observations across the active event set and the selected post-event window. Missing values are ignored, not zero-filled, so blank cells mean insufficient overlap rather than fake neutrality.
-        </div>
-
         <div className="px-4 py-2 flex gap-4 border-b border-border/40 flex-wrap">
           <SliderControl label="Window" value={maxOffset} onChange={setMaxOffset} min={5} max={63} step={1} suffix="D" />
           <SliderControl label="Min Overlap" value={minOverlap} onChange={setMinOverlap} min={3} max={50} step={1} />
@@ -158,6 +150,9 @@ export function CorrelationTab() {
             <span className="text-text-muted">-1.0</span>
           </div>
         </div>
+        <BottomDescription>
+          Correlations are built only from overlapping valid historical observations across the active event set and the selected post-event window. Missing values are ignored, not zero-filled, so blank cells mean insufficient overlap rather than fake neutrality.
+        </BottomDescription>
       </ChartCard>
     </div>
   );

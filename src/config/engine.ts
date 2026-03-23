@@ -89,22 +89,3 @@ export const REGIME_FILTER = {
   trigger_zscore_min: null as number | null,
   trigger_zscore_max: null as number | null,
 };
-
-export const CLASS_COLORS: Record<string, string> = {
-  'Equities':        '#58a6ff',
-  'World Indices':   '#79c0ff',
-  'Sector ETFs':     '#a5d6ff',
-  'Oil & Energy':    '#ffa657',
-  'Precious Metals': '#e3b341',
-  'FX':              '#3fb950',
-  'Rates':           '#f78166',
-  'Rates Futures':   '#ff9bce',
-  'Credit':          '#d2a8ff',
-  'Volatility':      '#bc8cff',
-  'Commodities':     '#56d364',
-  'Crypto':          '#89ddff',
-  'Shipping':        '#8b949e',
-  'Bond ETFs':       '#a5d6ff',
-  'Thematic ETFs':   '#e3b341',
-  'Country ETFs':    '#79c0ff',
-};
