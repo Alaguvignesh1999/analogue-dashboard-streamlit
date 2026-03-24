@@ -1,68 +1,47 @@
-# Analogue Dashboard
+# Analogue Dashboard Streamlit
 
-Analogue Dashboard is a Next.js web application for cross-asset historical analogue analysis, live-event matching, and scenario/risk workflows. It is the web productionization of the original notebook workflow, with generated historical artifacts, a shared live snapshot, and browser-local custom events.
+This folder is the fully separate Streamlit migration of the analogue dashboard.
+It is intended to be worked on independently from the original Next.js project.
 
-## Current State
+## What Runs Here
 
-- Framework: Next.js 15 / React 19
-- Historical dataset: generated artifacts in `public/data/`
-- Live dataset: shared daily snapshot plus private scenario mode
-- Asset coverage: 130+ assets across equities, rates, FX, credit, commodities, volatility, and crypto
-- Base event set: 13 canonical historical events
-- Custom events: local-only, browser-scoped, constrained to loaded historical coverage
+- `app.py`: Streamlit entrypoint
+- `views/`: tab/group renderers
+- `engine/`: Python ports of the scoring, live, decay, trade, and custom-event logic
+- `data_access/`: artifact loading and normalization
+- `state/`: Streamlit session-state contract
+- `tests/`: parity, loader, and smoke tests
+
+## What Is Kept For Reference
+
+- `src/`, `package.json`, and related Next.js files are kept in this copied repo only as a historical reference while the Streamlit version matures.
+- They are not the runtime target for this project.
+- The original Next.js project outside this folder remains untouched.
 
 ## Core Product Rules
 
-- Historical analysis reads only generated artifacts committed under `public/data/`.
-- Live scoring uses the latest observed market date on or before the requested Day 0. No lookahead is allowed.
+- Historical analysis reads only generated artifacts under `public/data/`.
+- Live scoring uses the latest observed market date on or before the requested Day 0.
 - Shared live snapshot is the default team view.
-- Private live scenarios reuse cached/generated data first and do not overwrite shared snapshot state.
-- Custom events never trigger historical backfills. They are computed locally from the already loaded daily-history artifact.
-
-## Main Repository Layout
-
-- `src/app/`: Next.js app shell and API routes
-- `src/components/`: dashboard UI and tab implementations
-- `src/engine/`: shared analytics, scoring, decay, live helpers, and custom-event logic
-- `src/store/`: shared Zustand dashboard state
-- `src/hooks/`: data loading and initialization
-- `public/data/`: generated historical and live snapshot artifacts
-- `scripts/`: data pipeline and regression/integrity checks
-- `config/`: live defaults and project configuration
-- `.github/workflows/`: scheduled refresh automation
-- `docs/`: architecture and operations notes
-
-## Data Artifacts
-
-The frontend expects these generated artifacts:
-
-- `public/data/meta.json`
-- `public/data/event_returns.json.gz`
-- `public/data/daily_history.json.gz`
-- `public/data/trigger_zscores.json`
-- `public/data/last_updated.json`
-- `public/data/live_snapshot.json`
-
-The app surfaces provenance from these artifacts so users can tell whether they are reading generated historical data, a shared live snapshot, a private scenario, or demo mode.
+- Private live scenarios are built from generated daily history and do not mutate shared state.
+- Custom events are session-local only and never write back to shared artifacts.
 
 ## Local Development
 
 ### 1. Install dependencies
 
 ```bash
-npm install
+pip install -r requirements.txt
 pip install -r scripts/requirements.txt
 ```
 
-### 2. Configure secrets
+### 2. Configure secrets for data refresh
 
-Create `.env.local` from `.env.example` and set:
+Create `.env.local` from `.env.example` if you need to run the historical refresh pipeline locally:
 
 ```bash
 FRED_API_KEY=your_real_key_here
 ```
-
-Do not commit live secrets.
 
 ### 3. Generate or refresh data locally
 
@@ -70,65 +49,33 @@ Do not commit live secrets.
 python scripts/pull_data.py
 ```
 
-### 4. Start the app
+### 4. Run the Streamlit app
 
 ```bash
-npm run dev
+streamlit run app.py
 ```
 
-## Validation Commands
-
-Run these before preview or production release:
+## Validation
 
 ```bash
-npm run build
-npm run test:snapshot-contract
-npm run test:live-parity
-npm run test:data-integrity
-npm run test:gate-regression
+pytest -q
 ```
 
-## Deployment Model
+The copied repo includes:
 
-### Historical refresh
+- artifact loader checks
+- engine parity checks
+- Streamlit smoke tests
 
-GitHub Actions runs `.github/workflows/data-refresh.yml` on schedule and by manual dispatch. It regenerates `public/data/*` and commits those artifacts back to the repo.
+## Deployment
 
-### Preview deploys
-
-Use Vercel preview deployments for ongoing work:
-
-```bash
-vercel deploy -y
-```
-
-### Production deploys
-
-Only deploy to production after:
-
-1. docs and code are committed
-2. generated data is refreshed
-3. validation commands pass
-4. the release candidate is reviewed in preview
-
-Then deploy:
-
-```bash
-vercel deploy --prod -y
-```
+- GitHub Actions refreshes `public/data/*`
+- `.github/workflows/streamlit-ci.yml` runs the Streamlit-side tests
+- Streamlit Community Cloud should point at this copied repo/folder and launch `app.py`
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [Operations](docs/OPERATIONS.md)
-- [Live State Model](docs/LIVE_STATE_MODEL.md)
-- [Notebook Parity Notes](docs/NOTEBOOK_PARITY.md)
-- [Scoring Pipeline](docs/SCORING_PIPELINE.md)
-- [Changelog](CHANGELOG.md)
-
-## Important Operational Notes
-
-- Production and GitHub `main` should stay aligned. Do not leave production running from an unmerged branch indefinitely.
-- Browser-local custom events are intentionally private and are not written back to GitHub or the shared live snapshot.
-- Some asset classes have mixed calendars. The live engine resolves on-or-before values and surfaces warnings when a requested asset has no valid data at the requested anchor.
-- `last_updated.json` is the first place to verify whether the current historical bundle is generated, current, and free of FRED failures.
+- `docs/streamlit-migration.md`
+- `docs/ARCHITECTURE.md`
+- `docs/LIVE_STATE_MODEL.md`
+- `docs/SCORING_PIPELINE.md`

@@ -35,6 +35,8 @@ yarn-error.log*
 next-env.d.ts
 
 .env*.local
+streamlit-live.log
+streamlit-live.err.log
 __pycache__/
 .pytest_cache/
 .streamlit/secrets.toml
