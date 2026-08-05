@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-08-04T04:41:55.089474Z",
+  "timestamp": "2026-08-05T04:42:01.380139Z",
   "n_assets": 124,
   "n_events": 13,
-  "n_rows": 10743,
+  "n_rows": 10744,
   "fred_failures": [],
   "schema_version": 2,
   "pipeline_mode": "generated",
-  "as_of": "2026-08-04",
-  "live_snapshot_date": "2026-08-04",
+  "as_of": "2026-08-05",
+  "live_snapshot_date": "2026-08-05",
   "live_snapshot_day0": "2026-02-28"
 }
